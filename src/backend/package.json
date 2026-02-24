@@ -1,0 +1,27 @@
+{
+  "name": "political-news-backend",
+  "version": "1.0.0",
+  "description": "Political News Assistant Backend Service",
+  "main": "simple-server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node simple-server.js",
+    "dev": "node simple-server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "axios": "^1.13.5",
+    "bcrypt": "^6.0.0",
+    "cheerio": "^1.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "next": "^14.2.28",
+    "node-cron": "^4.2.1",
+    "pg": "^8.18.0",
+    "postgres": "^3.4.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rss-parser": "^3.13.0",
+    "turndown": "^7.2.2",
+    "uuid": "^9.0.1"
+  }
+}

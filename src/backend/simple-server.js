@@ -1,0 +1,1499 @@
+require('dotenv').config();
+const http = require('http');
+const url = require('url');
+const aiService = require('./ai-service');
+const { getPool, initializeDatabase, closeDatabase } = require('./db');
+const authService = require('./auth-service-db');
+const bookmarkService = require('./bookmark-service');
+const historyService = require('./history-service');
+const marketAnalysisAgent = require('./market-analysis-agent');
+const marketBulletinAgent = require('./market-bulletin-agent');
+const marketDataService = require('./market-data-service');
+const realTimeMarketService = require('./real-time-market-service');
+const marketDataScheduler = require('./market-data-scheduler');
+const newsService = require('./news-service');
+const marketBulletinService = require('./market-bulletin-service');
+const aiLearningService = require('./ai-learning-service');
+const scheduler = require('./scheduler');
+const stockBulletinScraper = require('./stock-bulletin-scraper');
+// 新闻自动抓取调度器
+const newsScheduler = require('./news-scheduler');
+const PORT = 3001;
+
+// 新闻增强数据
+const newsEnhancements = {
+  '1': {
+    url: 'https://www.imf.org/en/News/Articles/2025/02/22/imf-reform-approved',
+    sourceUrl: 'https://www.imf.org',
+    sourceName: 'IMF官方网站',
+    summary: 'IMF理事会今日批准历史性改革方案，新兴市场份额将提升至50%，这标志着全球金融治理体系的重大变革。',
+    background: '国际货币基金组织（IMF）成立于1945年，是全球重要的金融安全网。长期以来，新兴市场和发展中国家在IMF中的代表性与它们的经济实力不匹配。随着中国、印度等新兴经济体的崛起，改革IMF治理结构的呼声日益高涨。',
+    relatedEvents: ['2010年G20首尔峰会首次提出IMF改革方案', '2023年美国国会批准IMF改革立法', '2024年新兴经济体集体推动改革落实', '2026年新一轮SDR分配计划启动']
+  },
+  '2': {
+    url: 'https://www.nature.com/articles/tech-ai-2025',
+    sourceUrl: 'https://www.nature.com',
+    sourceName: 'Nature科技新闻',
+    summary: '全球科技巨头联合发布新一代AI模型，实现多项技术突破，在推理速度、安全性和效率方面均有显著提升。',
+    background: '人工智能技术正处于快速发展阶段，各大科技公司在AI领域的竞争日趋激烈。新一代AI模型的发布被视为人工智能发展的重要里程碑。',
+    relatedEvents: ['2024年OpenAI发布GPT-4', '2024年Google发布Gemini Ultra', '2025年各大科技公司加大AI投入', '2025年AI伦理和监管框架讨论升温']
+  },
+  '3': {
+    url: 'https://unfccc.int/news/climate-emergency-meeting-2025',
+    sourceUrl: 'https://unfccc.int',
+    sourceName: '联合国气候变化框架公约',
+    summary: '联合国召开气候变化紧急会议，190多国代表共商应对措施，旨在加强全球气候行动。',
+    background: '气候变化是当今世界面临的最严峻挑战之一。《巴黎协定》是国际社会应对气候变化的纲领性文件，但当前进展速度不足以实现协定目标。',
+    relatedEvents: ['2015年《巴黎协定》签署', '2021年格拉斯哥气候大会COP26', '2023年迪拜气候大会COP28', '2025年新一轮气候资金承诺']
+  },
+  '4': {
+    url: 'https://www.pbc.gov.cn/goutongjiaoliu/20250222/index.html',
+    sourceUrl: 'https://www.pbc.gov.cn',
+    sourceName: '中国人民银行',
+    summary: '央行宣布下调存款准备金率和逆回购利率，加大对实体经济支持力度，巩固经济回升向好态势。',
+    background: '央行降息是重要的货币政策工具。在经济下行压力较大时，适度降息可以有效刺激经济，降低企业融资成本，提振市场信心。',
+    relatedEvents: ['2024年首次降息', '2024年LPR多次下调', '2025年经济形势分析', '2025年货币政策取向']
+  },
+  '5': {
+    url: 'https://www.wto.org/english/news_e/news25_e/summit_22feb25_e.htm',
+    sourceUrl: 'https://www.wto.org',
+    sourceName: '世界贸易组织',
+    summary: '国际贸易峰会圆满闭幕，主要经济体就降低关税壁垒达成重要共识，将为全球贸易创造新增长点。',
+    background: '多边贸易体制是战后全球经济治理的重要支柱。此次峰会成功达成贸易协定，被视为多边主义的重要胜利。',
+    relatedEvents: ['2023年贸易谈判启动', '2024年多轮部长级会议', '2025年各国立场协调', '2025年协议文本达成']
+  },
+  '6': {
+    url: 'https://www.spacechina.com/news/2025/launch-communication-satellite',
+    sourceUrl: 'https://www.spacechina.com',
+    sourceName: '中国航天科技集团',
+    summary: '我国成功发射新一代通信技术试验卫星，卫星通信容量达100Gbps以上。',
+    background: '卫星通信是现代通信体系的重要组成部分。我国高度重视航天事业发展，将航天强国建设作为国家战略。',
+    relatedEvents: ['2024年卫星研制启动', '2024年关键技术攻关', '2025年发射任务准备', '2025年航天发射计划']
+  },
+  '7': {
+    url: 'https://www.iea.org/reports/world-energy-outlook-2025',
+    sourceUrl: 'https://www.iea.org',
+    sourceName: '国际能源署',
+    summary: '国际能源署报告显示全球能源转型加速，2025年清洁能源投资达1.8万亿美元。',
+    background: '能源转型是全球应对气候变化的关键举措。国际能源署是能源领域的权威国际组织。',
+    relatedEvents: ['《巴黎协定》目标设定', '全球能源转型趋势', '清洁能源技术突破', '各国碳中和目标承诺']
+  },
+  '8': {
+    url: 'https://www.moe.gov.cn/jyb_xwfb/gzdt_gzdt/202502/t20250222_102345.html',
+    sourceUrl: 'https://www.moe.gov.cn',
+    sourceName: '中华人民共和国教育部',
+    summary: '教育部发布高等教育改革新政策，优化学科专业设置、创新人才培养模式。',
+    background: '高等教育是培养高素质人才的重要基地。当前高等教育存在专业设置与社会需求脱节等问题。',
+    relatedEvents: ['教育现代化2035部署', '双一流建设', '产教融合推进', '新工科建设']
+  },
+  '9': {
+    url: 'https://www.stats.gov.cn/sj/zxfb/202502/t20250222_123456.html',
+    sourceUrl: 'https://www.stats.gov.cn',
+    sourceName: '国家统计局',
+    summary: '2025年我国数字经济核心产业增加值达12.5万亿元，占GDP比重10.5%。',
+    background: '数字经济是继农业经济、工业经济之后的主要经济形态。5G、人工智能、大数据等技术快速发展。',
+    relatedEvents: ['数字中国战略', '新基建部署', '产业数字化转型', '数据要素市场培育']
+  },
+  '10': {
+    url: 'https://www.un.org/unwatch/2025/02/middle-east-peace-talks',
+    sourceUrl: 'https://www.un.org',
+    sourceName: '联合国新闻',
+    summary: '在联合国斡旋下，以色列与巴勒斯坦举行间接会谈并达成重要共识。',
+    background: '巴以冲突是中东地区持续时间最长的冲突之一。此次会谈的成果来之不易。',
+    relatedEvents: ['巴以冲突历史', '过往和平进程', '国际调解努力', '地区局势变化']
+  },
+  '11': {
+    url: 'https://www.ustc.edu.cn/info/1057/12345.htm',
+    sourceUrl: 'https://www.ustc.edu.cn',
+    sourceName: '中国科学技术大学',
+    summary: '中科大成功研制62比特超导量子计算原型机"祖冲之二号"。',
+    background: '量子计算是量子信息技术的重要方向。中科大是国内量子研究的领军机构之一。',
+    relatedEvents: ['量子计算国际竞争', '量子技术路线', '超导量子比特研制', '量子优越性实现']
+  },
+  '12': {
+    url: 'https://www.mohurd.gov.cn/zfgc/202502/t20250222_234567.html',
+    sourceUrl: 'https://www.mohurd.gov.cn',
+    sourceName: '住房城乡建设部',
+    summary: '住建部表示将继续坚持"房住不炒"定位，促进市场平稳健康发展。',
+    background: '房地产市场关系国计民生。政府始终坚持"房住不炒"的定位。',
+    relatedEvents: ['房地产调控历史', '市场供求变化', '保障性住房建设', '房地产税立法']
+  }
+};
+
+// Keep for fallback
+let bookmarks = [];
+let history = [];
+let bookmarkIdCounter = 1;
+let historyIdCounter = 1;
+
+// Initialize database on startup
+initializeDatabase().then(() => {
+  console.log('Database initialized successfully');
+
+  // 启动市场数据自动更新调度器
+  console.log('Starting market data scheduler...');
+  marketDataScheduler.start();
+}).catch(err => {
+  console.error('Failed to initialize database, running with in-memory data:', err);
+
+  // 即使数据库初始化失败，也启动调度器
+  console.log('Starting market data scheduler...');
+  marketDataScheduler.start();
+});
+
+const mockNews = [
+  {
+    id: '1',
+    title: '国际货币基金组织批准最新改革方案',
+    url: '#',
+    description: 'IMF理事会批准了一系列改革措施，旨在增强新兴市场和发展中国家的代表权...',
+    urlToImage: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=450&fit=crop',
+    content: `国际货币基金组织（IMF）理事会于今日正式批准了一项历史性的改革方案，这将显著增强新兴市场和发展中国家在全球金融治理中的代表性和发言权。
+
+此次改革的核心内容包括：
+
+第一，份额分配调整。IMF将重新分配成员国的份额比例，新兴市场和发展中国家的整体份额将提升至约50%，更好地反映它们在全球经济中日益增长的重要性。中国、印度、巴西等主要新兴经济体的份额都将获得显著提升。
+
+第二，治理结构优化。改革方案还涉及IMF执行董事会的构成优化，增加非洲国家的代表性，并确保更多发展中国家能够参与关键决策过程。
+
+第三，特别提款权（SDR）分配。IMF计划在2026年进行新一轮SDR分配，总额约6500亿美元，这将帮助成员国应对全球经济不确定性，增强全球流动性。
+
+IMF总裁表示，这次改革是"里程碑式的一步"，标志着全球金融治理体系朝着更加公平、包容的方向发展。她强调，在当前全球面临多重挑战的背景下，加强国际合作、推动机构改革对于维护全球经济稳定至关重要。
+
+分析人士指出，这次改革将使IMF更好地适应21世纪的全球经济格局，提高其合法性和有效性。同时，这也反映了国际社会对多边主义和多边机构改革的共识。
+
+中国外交部发言人表示，中方欢迎并支持IMF推进改革，愿与各方一道，推动完善全球经济治理，为世界经济增长注入新动力。`,
+    sourceName: '财经时报',
+    publishedAt: new Date(Date.now() - 3600000).toISOString(),
+    importanceScore: 0.85,
+    category: '财经',
+    categorySlug: 'business',
+    keywords: ['IMF', '改革', '国际金融']
+  },
+  {
+    id: '2',
+    title: '科技巨头发布新一代AI模型',
+    url: '#',
+    description: '主要科技公司宣布推出更强大、更安全的人工智能模型，将改变行业格局...',
+    urlToImage: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop',
+    content: `多家全球领先的科技公司今日联合宣布推出新一代人工智能模型，这被认为是人工智能领域的一次重大突破。
+
+据悉，新一代AI模型在多个关键指标上实现了显著提升：
+
+在能力方面，新模型在自然语言理解、代码生成、数学推理、图像分析等多个领域的测试中刷新了记录。特别是在复杂推理任务上，准确率比上一代模型提升了40%以上。
+
+在安全性方面，新模型采用了多层安全防护机制，包括：内置的内容过滤器、可解释性增强工具、对抗攻击防御系统，以及符合各国法规的合规性框架。研发团队表示，安全是这次设计的核心考虑因素之一。
+
+在效率方面，新模型的推理速度提升了3倍，能耗降低了50%，这使得大规模商业应用变得更加可行。
+
+值得关注的是，这次发布还特别强调了中国市场的重要性。多家公司表示将推出专为中国市场优化的版本，并计划与中国的科研机构和企业建立深度合作关系。
+
+业内专家认为，新一代AI模型的推出将加速人工智能在各行各业的应用，特别是在教育、医疗、金融、制造等领域，有望带来革命性的变化。
+
+同时，这也引发了关于AI伦理和监管的广泛讨论。专家呼吁各国加强合作，建立统一的AI治理框架，确保人工智能技术造福全人类。
+
+此次发布也被视为全球科技竞争的新阶段，预示着未来几年AI领域将迎来更加激烈的创新竞争。`,
+    sourceName: '科技日报',
+    publishedAt: new Date(Date.now() - 7200000).toISOString(),
+    importanceScore: 0.78,
+    category: '科技',
+    categorySlug: 'technology',
+    keywords: ['AI', '科技', '机器学习']
+  },
+  {
+    id: '3',
+    title: '联合国召开气候变化紧急会议',
+    url: '#',
+    description: '针对全球极端天气频发，联合国召集各国代表商讨应对措施...',
+    urlToImage: 'https://images.unsplash.com/photo-1569163139394-de4798aa62b6?w=800&h=450&fit=crop',
+    content: `联合国今日在纽约总部召开气候变化紧急会议，来自190多个国家的代表齐聚一堂，共同商讨应对全球气候变化的紧急措施。
+
+此次会议的背景是近期全球各地频发的极端天气事件：北美洲遭遇历史性高温，欧洲多地发生特大洪水，亚洲部分地区面临严重干旱。这些事件造成了巨大的人员伤亡和经济损失，再次敲响了气候危机的警钟。
+
+会议的主要议程包括：
+
+首先，审议《巴黎协定》的实施进展。会议听取了各国在减少温室气体排放方面的进展报告，并讨论了如何加快实现减排目标的路径。联合国秘书长强调，目前的进展速度远远不够，需要各国采取更加雄心勃勃的行动。
+
+其次，讨论气候融资机制。发达国家承诺到2025年每年向发展中国家提供1000亿美元的气候资金，用于支持减缓和适应气候变化的项目。会议讨论了如何确保资金到位、提高使用效率。
+
+第三，关注脆弱国家的需求。小岛屿发展中国家和最不发达国家受到气候变化的影响最为严重，会议专门讨论了如何为这些国家提供额外的支持和保护。
+
+会议还讨论了建立全球碳市场、保护森林、促进清洁技术转让等重要议题。
+
+中国代表在会上表示，中国将坚定不移地走绿色低碳发展道路，力争在2030年前实现碳达峰、2060年前实现碳中和。同时，中国呼吁发达国家切实承担责任，为发展中国家提供资金、技术和能力建设支持。
+
+会议预计将通过一份具有法律约束力的决议，要求各国加强气候行动，并为即将举行的全球气候峰会奠定基础。
+
+联合国秘书长在闭幕致辞中呼吁："我们只有这一个地球，没有备选方案。现在就是行动的时候。"`,
+    sourceName: '环球时报',
+    publishedAt: new Date(Date.now() - 10800000).toISOString(),
+    importanceScore: 0.92,
+    category: '国际',
+    categorySlug: 'world',
+    keywords: ['联合国', '气候变化', '环境']
+  },
+  {
+    id: '4',
+    title: '央行降息刺激经济增长',
+    url: '#',
+    description: '央行宣布下调基准利率25个基点，旨在提振市场信心和促进投资...',
+    urlToImage: 'https://images.unsplash.com/photo-1579532537598-459ecdaf39cc?w=800&h=450&fit=crop',
+    content: `中国人民银行今日宣布下调金融机构存款准备金率0.25个百分点，同时下调7天期逆回购操作利率10个基点，这是今年以来第二次降息。
+
+央行表示，此次降息是为了应对当前经济下行压力，加大对实体经济的支持力度，巩固经济回升向好的态势。
+
+降息的主要影响：
+
+对于企业来说，融资成本将进一步降低。预计此次降息将为实体经济节省融资成本超过1000亿元，特别是对中小企业、制造业、绿色发展等重点领域将带来实质性的利好。
+
+对于房地产市场，降息有望提振市场信心。分析人士认为，降息将降低房贷利率，刺激购房需求，对房地产市场形成支撑。但同时也要注意防范房地产泡沫风险。
+
+对于股市而言，降息通常被视为利好消息。降息降低了企业的财务成本，提高了盈利预期，对股市形成支撑。不过，市场反应还需结合其他因素综合考虑。
+
+对于普通百姓来说，降息可能会影响存款利率和理财收益，但贷款利率下降也将减轻房贷、车贷等负担。
+
+央行负责人强调，此次降息是稳健货币政策的具体体现，不是搞"大水漫灌"，而是精准滴灌，重点支持实体经济和小微企业。
+
+专家分析认为，在当前全球经济不确定性增加的背景下，央行选择适度降息是明智之举。这既有助于稳定经济增长，又为后续政策调整留出了空间。
+
+不过，也有专家提醒，降息的效果需要时间才能显现，预计未来一个季度经济数据可能会有所改善。同时，需要密切关注通胀走势，防范物价上涨压力。
+
+总体而言，此次降息体现了政府对稳增长的高度重视，将为经济复苏注入新的动力。`,
+    sourceName: '财经周刊',
+    publishedAt: new Date(Date.now() - 14400000).toISOString(),
+    importanceScore: 0.88,
+    category: '财经',
+    categorySlug: 'business',
+    keywords: ['央行', '降息', '经济']
+  },
+  {
+    id: '5',
+    title: '国际峰会达成贸易协定',
+    url: '#',
+    description: '多国贸易会议圆满结束，主要经济体就降低关税壁垒达成共识...',
+    urlToImage: 'https://images.unsplash.com/photo-1526304640152-d4619684e484?w=800&h=450&fit=crop',
+    content: `为期五天的国际贸易峰会在日内瓦圆满闭幕，包括中国、美国、欧盟、日本在内的主要经济体就降低关税壁垒、促进贸易自由化达成了重要共识。
+
+此次达成的贸易协定被认为具有里程碑意义，主要内容包括：
+
+第一，大幅降低关税。各国同意在未来五年内将工业品平均关税水平降低50%，农产品关税降低30%。这将为全球贸易创造新的增长点，预计每年可为全球经济增加超过2万亿美元的价值。
+
+第二，简化贸易程序。协定要求各国简化海关程序，缩短通关时间，降低合规成本。特别是对于中小企业，将建立专门的快速通关通道，帮助它们更好地参与国际贸易。
+
+第三，服务贸易开放。各国承诺在金融服务、电信、电子商务、专业服务等领域进一步开放市场，为服务贸易创造更多机会。这将有利于各国企业，特别是发展中国家的服务提供商拓展国际市场。
+
+第四，数字贸易规则。协定首次制定了数字贸易的国际规则，承认电子签名的法律效力，禁止对数字产品征收关税，保护数据跨境流动自由。这将为全球数字经济的发展创造有利环境。
+
+第五，可持续发展章节。协定强调贸易政策应与环境保护、劳工标准相协调，鼓励企业采用可持续的生产和贸易方式。
+
+商务部发言人对协议的成功达成表示欢迎，认为这体现了各方对多边贸易体系的支持，为世界经济复苏注入了强心剂。同时，他也指出，协定在执行过程中需要平衡各方利益，确保发展中国家获得应有的发展空间。
+
+业内人士分析，这次贸易协定的达成将为全球贸易体系注入新的活力，有助于应对当前的经济挑战。不过，各国的具体落实措施仍需密切关注，一些敏感领域的谈判可能还会继续。
+
+此次峰会的成功也为未来更广泛的多边贸易合作奠定了基础，显示了国际合作在应对全球挑战中的重要性。`,
+    sourceName: '国际新闻',
+    publishedAt: new Date(Date.now() - 18000000).toISOString(),
+    importanceScore: 0.75,
+    category: '时政',
+    categorySlug: 'politics',
+    keywords: ['贸易', '国际', '协定']
+  },
+  {
+    id: '6',
+    title: '我国成功发射新一代通信卫星',
+    url: '#',
+    description: '长征系列运载火箭今日在酒泉卫星发射中心成功升空，将新一代通信技术试验卫星送入预定轨道...',
+    urlToImage: 'https://images.unsplash.com/photo-1516849841032-87cbac4d88f7?w=800&h=450&fit=crop',
+    content: `今日凌晨4时30分，我国在酒泉卫星发射中心使用长征二号丙运载火箭，成功将新一代通信技术试验卫星发射升空，卫星顺利进入预定轨道，发射任务获得圆满成功。
+
+此次发射的新一代通信技术试验卫星是我国自主研发的第十五颗通信技术试验卫星，搭载了多项具有国际先进水平的通信技术。卫星采用先进的 Ku/Ka 多频段通信系统，具备大容量、高吞吐量的数据传输能力，将为我国通信基础设施建设提供强有力的技术支撑。
+
+卫星的主要技术特点包括：
+
+第一，超大容量通信能力。卫星配备了采用空间隔离技术的多波束天线，可同时支持数百个波束的通信需求，总通信容量达到100Gbps以上，是上一代通信卫星的10倍以上。
+
+第二，灵活载荷技术。卫星采用数字化透明转发器，可以根据业务需求灵活调整带宽和功率分配，实现资源的动态优化配置，大大提高了频谱利用率。
+
+第三，星间链路技术。卫星搭载了激光星间链路设备，可以实现与其他卫星的高速数据交换，构建天基信息网络，减少对地面站的依赖。
+
+第四，自主导航能力。卫星配备了高精度原子钟和自主导航系统，可以在不依赖地面导航的情况下保持精确的轨道位置，提高了系统的抗干扰能力和生存能力。
+
+此次发射任务的圆满成功，标志着我国通信卫星技术取得了重大突破，为建设天地一体化信息网络奠定了坚实基础。
+
+航天专家指出，新一代通信卫星的成功发射，不仅提升了我国卫星通信产业的整体水平，也为远程教育、远程医疗、应急通信、海洋监测等领域的发展提供了强有力的技术支撑。
+
+卫星将在轨进行为期三个月的技术验证，预计将于今年下半年正式投入使用。届时，将为全国用户提供更加优质、更加便捷的通信服务。
+
+此次发射是长征系列运载火箭的第487次飞行，也是今年以来长征系列运载火箭的第25次成功发射，充分展示了我国航天工业的可靠性和稳定性。`,
+    sourceName: '科技日报',
+    publishedAt: new Date(Date.now() - 21600000).toISOString(),
+    importanceScore: 0.88,
+    category: '科技',
+    categorySlug: 'technology',
+    keywords: ['卫星', '航天', '通信']
+  },
+  {
+    id: '7',
+    title: '全球能源转型加速推进',
+    url: '#',
+    description: '国际能源署发布最新报告显示，全球可再生能源发展速度远超预期，清洁能源投资创历史新高...',
+    urlToImage: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=800&h=450&fit=crop',
+    content: `国际能源署（IEA）今日在巴黎发布最新年度报告显示，全球能源转型正在加速推进，可再生能源发展速度远超预期，清洁能源投资在2025年达到创纪录的1.8万亿美元。
+
+报告的主要发现包括：
+
+第一，可再生能源装机容量快速增长。2025年全球新增可再生能源装机容量达到510GW，比2024年增长25%，创历史新高。其中，太阳能光伏新增装机容量占新增总量的65%，风能占25%。中国、欧盟、美国是可再生能源装机增长最快的三个地区。
+
+第二，清洁能源投资首次超过化石能源投资。2025年全球清洁能源投资达到1.8万亿美元，比化石能源投资高出30%。其中，太阳能投资达到5000亿美元，风能投资达到3500亿美元，电动汽车和储能投资合计达到4000亿美元。
+
+第三，能源效率持续提升。全球能源强度（单位GDP能耗）在2025年下降了2.3%，是过去十年来的最大降幅。能效提升主要来自工业节能改造、建筑节能标准和电动汽车的普及。
+
+第四，电动汽车市场爆发式增长。2025年全球电动汽车销量达到1500万辆，占新车销量的35%，比2024年提高了10个百分点。中国电动汽车销量占全球总量的60%，欧洲占25%，美国占10%。
+
+第五，储能技术快速发展。全球储能装机容量在2025年达到120GW，是2024年的2.5倍。锂离子电池储能占主导地位，但液流电池、钠离子电池等新型储能技术也开始商业化应用。
+
+报告指出，尽管全球能源转型取得了显著进展，但仍面临诸多挑战。一是电网基础设施滞后，可再生能源并网困难；二是关键矿产资源供应紧张，锂、钴、镍等价格大幅波动；三是部分发展中国家资金不足，能源转型进程缓慢。
+
+国际能源署署长表示，能源转型是全球应对气候变化的必由之路。各国需要加大政策支持力度，加强国际合作，共同推动能源体系向清洁、低碳、安全、高效的方向转型。
+
+专家建议，为实现《巴黎协定》的气候目标，全球需要在2030年前将可再生能源装机容量提高到11000GW，在2050年前实现能源体系的净零排放。`,
+    sourceName: '能源周刊',
+    publishedAt: new Date(Date.now() - 25200000).toISOString(),
+    importanceScore: 0.92,
+    category: '财经',
+    categorySlug: 'business',
+    keywords: ['能源', '可再生能源', '环保']
+  },
+  {
+    id: '8',
+    title: '教育部发布高等教育改革新政策',
+    url: '#',
+    description: '教育部今日召开新闻发布会，公布一系列高等教育改革措施，涉及学科专业设置、人才培养模式等方面...',
+    urlToImage: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&h=450&fit=crop',
+    content: `教育部今日上午召开新闻发布会，正式发布《关于深化高等教育改革的若干意见》，推出了一系列重大改革措施，旨在全面提升高等教育质量，培养更多适应新时代发展需要的高素质人才。
+
+改革措施的主要内容包括：
+
+第一，优化学科专业结构。教育部将建立学科专业动态调整机制，对连续五年就业率低于60%的专业实行预警，对连续三年就业率低于50%的专业实行暂停招生。同时，大力支持新兴交叉学科发展，鼓励高校开设人工智能、量子信息、生物技术、新能源等国家战略急需专业。
+
+第二，创新人才培养模式。全面推进"新工科、新医科、新农科、新文科"建设，打破学科壁垒，推动跨学科人才培养。推广"书院制"、"导师制"等人才培养模式改革，为每位本科生配备学术导师和企业导师，提供个性化的学习指导。
+
+第三，强化实践教学。要求理工科专业实践教学学分占总学分比例不低于30%，文科专业不低于20%。建设1000个国家级实验教学示范中心，10000个校企合作的实习实训基地，确保学生有充足的机会接触实际工作环境。
+
+第四，推进教育数字化。建设国家高等教育智慧教育平台，汇聚10000门国家级一流课程，实现优质教育资源共享。推广线上线下混合式教学，建设500个国家级虚拟仿真实验教学项目，为学生提供沉浸式学习体验。
+
+第五，改革评价体系。破除"五唯"（唯分数、唯升学、唯文凭、唯论文、唯帽子）顽疾，建立多元化的评价体系。对于本科生，推行学业成绩与综合素质并重的评价方式；对于研究生，强调创新能力评价，学位论文可以多样化形式呈现。
+
+第六，加强教师队伍建设。提高教师准入门槛，新聘教师必须具有博士学位或高级职称。实施"长江学者""青年学者"等人才计划，引进和培养一批高水平的学科带头人和青年骨干教师。提高教师待遇，确保教师平均工资水平不低于当地公务员平均工资水平。
+
+教育部负责人表示，这次改革是自改革开放以来最深刻的一次高等教育改革，将对中国高等教育的发展产生深远影响。
+
+专家分析，改革措施切中当前高等教育的痛点，有利于解决高校专业设置与社会需求脱节、人才培养质量不高等问题。但改革也面临师资不足、经费短缺等挑战，需要各级政府加大投入力度。
+
+改革方案将于今年秋季学期开始实施，预计到2030年全面完成各项改革目标。`,
+    sourceName: '教育报',
+    publishedAt: new Date(Date.now() - 28800000).toISOString(),
+    importanceScore: 0.85,
+    category: '时政',
+    categorySlug: 'politics',
+    keywords: ['教育', '高等教育', '改革']
+  },
+  {
+    id: '9',
+    title: '我国数字经济规模突破50万亿元',
+    url: '#',
+    description: '国家统计局发布数据显示，2025年我国数字经济核心产业增加值占GDP比重达到10.5%，数字经济发展取得新突破...',
+    urlToImage: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=450&fit=crop',
+    content: `国家统计局今日上午发布的数据显示，2025年我国数字经济核心产业增加值达到12.5万亿元，占GDP比重达到10.5%，数字经济总体规模超过50万亿元，标志着我国数字经济发展迈上新台阶。
+
+数字经济的快速发展主要得益于以下几个方面的推动：
+
+第一，数字基础设施建设成效显著。截至2025年底，我国5G基站总数达到450万个，覆盖所有地级市和县城城区，5G用户数达到8亿户。千兆光纤宽带用户达到3亿户，占固定宽带用户的40%。北斗三号全球卫星导航系统建成并投入使用，为数字经济提供了时空基准。
+
+第二，产业数字化转型深入推进。制造业数字化、网络化、智能化转型步伐加快，关键工序数控化率达到55%，数字化研发设计工具普及率达到85%。工业互联网平台超过600家，连接设备超过8000万台套，服务企业超过150万家。农业数字化转型稳步推进，农产品网络零售额突破1万亿元。
+
+第三，数字产业化规模持续扩大。软件和信息技术服务业收入达到15万亿元，同比增长15%。电子信息制造业收入达到20万亿元，同比增长10%。人工智能核心产业规模达到5000亿元，区块链产业规模达到500亿元，量子计算、类脑计算等前沿技术取得重要突破。
+
+第四，数字政务和数字民生蓬勃发展。全国一体化政务服务平台建成运行，90%以上的政务服务事项实现"一网通办"。数字教育、数字医疗、数字文化等公共服务快速发展，在线教育用户超过4亿，互联网医疗用户超过3亿，网络视频用户超过10亿。
+
+第五，数据要素市场加快培育。北京、上海、广东等数据交易所陆续成立，数据确权、定价、交易等制度体系逐步完善。数据要素对经济发展的促进作用日益显现，据测算，数据要素对GDP增长的贡献率达到15%。
+
+专家指出，我国数字经济发展虽然取得了显著成就，但仍面临一些挑战。一是核心技术创新能力有待提升，高端芯片、工业软件等关键技术仍受制于人；二是数字鸿沟依然存在，城乡之间、区域之间数字经济发展不平衡；三是数据安全和隐私保护面临新挑战。
+
+国家统计局负责人表示，未来将深入实施"数字中国"战略，加快推进数字基础设施建设，大力培育数字经济新业态新模式，完善数字经济治理体系，促进数字经济健康发展。
+
+国际货币基金组织评价，中国数字经济的发展速度和规模令人印象深刻，为全球数字经济合作与发展作出了重要贡献。`,
+    sourceName: '经济日报',
+    publishedAt: new Date(Date.now() - 32400000).toISOString(),
+    importanceScore: 0.90,
+    category: '财经',
+    categorySlug: 'business',
+    keywords: ['数字经济', 'GDP', '新基建']
+  },
+  {
+    id: '10',
+    title: '中东和平进程取得重要进展',
+    url: '#',
+    description: '在联合国斡旋下，以色列与巴勒斯坦代表在日内瓦举行间接会谈，就重启和平进程达成初步共识...',
+    urlToImage: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&h=450&fit=crop',
+    content: `经过联合国多轮斡旋，以色列与巴勒斯坦代表今日在瑞士日内瓦结束了为期三天的间接会谈，双方就重启和平进程达成重要共识，为解决持续数十年的巴以冲突带来新的希望。
+
+此次会谈的背景是巴以局势持续紧张，近期冲突已造成双方大量人员伤亡。应联合国要求，双方代表在日内瓦举行了本轮间接会谈，由联合国特使居中传话。
+
+会谈达成的共识包括：
+
+第一，双方同意恢复全面对话。将在一个月内恢复直接谈判，讨论最终地位问题，包括边界划分、耶路撒冷地位、难民回归、犹太人定居点等核心议题。
+
+第二，双方承诺在谈判期间采取克制态度。以色列承诺暂停新建犹太人定居点，巴勒斯坦承诺停止针对以色列平民的暴力袭击。双方同意建立联合安全机制，共同应对极端势力的挑衅行为。
+
+第三，双方同意在经济领域开展合作。以色列将放松对加沙地带的封锁，允许更多物资进入。巴勒斯坦将吸引国际投资，创造就业机会，改善民生。双方将建立联合经济委员会，协调经济合作事宜。
+
+第四，国际社会将提供支持。美国、欧盟、阿拉伯国家等承诺向巴勒斯坦提供经济援助，帮助其改善基础设施、发展经济。以色列将获得安全保障承诺，包括与周边国家的安全合作机制。
+
+联合国秘书长对会谈成果表示欢迎，称这是"向前迈出的重要一步"。他强调，实现持久和平需要双方展现出政治勇气，作出艰难妥协。
+
+分析人士指出，虽然本轮会谈取得了积极成果，但巴以问题错综复杂，历史积怨深厚，最终地位谈判将面临巨大挑战。过去几十年，巴以和平进程多次启动又多次中断，双方在核心问题上的分歧依然严重。
+
+美国国务院表示，美国将全力支持巴以和平进程，继续发挥建设性作用。欧盟也呼吁双方抓住机遇，推动和平进程取得实质性进展。
+
+中国外交部发言人在例行记者会上表示，中方始终坚定支持巴勒斯坦人民的合法民族权利，支持在"两国方案"基础上解决巴以问题。中方赞赏联合国的斡旋努力，愿意为推动巴以和平进程发挥建设性作用。
+
+据悉，下一轮直接谈判将于下个月在埃及首都开罗举行。`,
+    sourceName: '环球时报',
+    publishedAt: new Date(Date.now() - 36000000).toISOString(),
+    importanceScore: 0.93,
+    category: '国际',
+    categorySlug: 'world',
+    keywords: ['中东', '和平', '以色列']
+  },
+  {
+    id: '11',
+    title: '我国科学家在量子计算领域取得重大突破',
+    url: '#',
+    description: '中国科学技术大学潘建伟团队成功研制出62比特超导量子计算原型机"祖冲之二号"，在特定问题求解上超越超级计算机...',
+    urlToImage: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&h=450&fit=crop',
+    content: `中国科学技术大学潘建伟团队今日在《物理评论快报》上发表研究成果，宣布成功研制出62比特可编程超导量子计算原型机"祖冲之二号"，并在量子随机线路采样问题上展现出强大的量子算力。
+
+这项研究的重大意义体现在以下几个方面：
+
+第一，量子比特数量达到新高度。"祖冲之二号"采用62个超导量子比特，是目前世界上量子比特数量最多的超导量子计算系统之一。相比"祖冲之号"的56个量子比特，新增了6个量子比特，使系统的计算能力提升了近一倍。
+
+第二，量子计算速度实现重大突破。研究团队在对"祖冲之二号"进行量子随机线路采样实验时，发现其在200秒内完成的任务，世界上最快的超级计算机"富岳"需要花费约100亿年才能完成，实现了真正的"量子优越性"。
+
+第三，系统保真度显著提升。通过改进量子比特的设计和制造工艺，团队成功将单比特门保真度提高到99.9%，两比特门保真度提高到99.5%，读取保真度提高到98%。这些指标均达到国际领先水平。
+
+第四，软件栈更加完善。研究团队开发了配套的量子计算软件系统，包括量子电路编译器、量子纠错算法、量子程序开发环境等，为用户提供了便捷的量子计算应用开发工具。
+
+量子计算是信息技术的前沿领域，有望在密码破解、药物研发、金融建模、材料设计等领域产生革命性影响。近年来，美国、欧盟、日本等都在量子计算领域投入巨资，竞争异常激烈。
+
+专家评价，"祖冲之二号"的成功研制，标志着中国在量子计算领域已经跻身世界前列，为未来研制实用的通用量子计算机奠定了坚实基础。
+
+中国科学院院长表示，这一突破是中国科学家在世界科技前沿取得的重要成果，体现了中国在前沿科技领域的创新能力。中国科学院将继续加大对量子计算等前沿科技的支持力度，力争在更多领域实现从跟跑到领跑的转变。
+
+国际同行专家认为，"祖冲之二号"在量子比特数量和量子计算质量两方面都达到了国际领先水平，为量子计算的实用化进程作出了重要贡献。
+
+据悉，研究团队下一步将致力于提高量子比特的相干时间，降低量子门操作的错误率，为实现通用量子计算铺平道路。`,
+    sourceName: '科技日报',
+    publishedAt: new Date(Date.now() - 39600000).toISOString(),
+    importanceScore: 0.95,
+    category: '科技',
+    categorySlug: 'technology',
+    keywords: ['量子计算', '科研', '超导']
+  },
+  {
+    id: '12',
+    title: '房地产市场调控政策持续优化',
+    url: '#',
+    description: '住房城乡建设部表示，将继续坚持"房住不炒"定位，因城施策用足政策工具箱，支持刚性和改善性住房需求...',
+    urlToImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=450&fit=crop',
+    content: `住房城乡建设部今日召开新闻发布会，介绍当前房地产市场形势和调控政策。部发言人表示，将继续坚持"房子是用来住的、不是用来炒的"定位，因城施策用足政策工具箱，支持刚性和改善性住房需求，促进房地产市场平稳健康发展。
+
+发言人介绍了当前房地产市场的几个特点：
+
+第一，市场销售保持基本稳定。1-11月，全国商品房销售面积同比下降5%，销售额同比下降3%，降幅比1-10月分别收窄2个和1.5个百分点，市场呈现企稳回升态势。重点城市二手房成交量连续三个月环比增长。
+
+第二，房价总体平稳。11月份，70个大中城市新建商品住宅价格环比上涨的城市有45个，下降的有25个。一线城市房价环比上涨0.3%，二线城市上涨0.1%，三线城市下降0.1%。房价涨幅总体处于合理区间。
+
+第三，房地产投资增速有所回落。1-11月，全国房地产开发投资同比下降8%，降幅比1-10月扩大0.5个百分点。其中，住宅投资下降7.5%。房地产开发企业房屋施工面积同比下降7%，新开工面积下降20%。
+
+针对当前市场形势，住房城乡建设部提出了以下政策措施：
+
+第一，支持刚性和改善性住房需求。对于购买首套住房的居民，继续执行20%的首付比例和优惠利率。对于购买第二套住房的居民，首付比例不低于30%，利率不低于基准利率的1.1倍。各地可以根据实际情况，适当调整首付比例和贷款利率下限。
+
+第二，优化限购限贷政策。对于居民家庭（包括借款人、配偶及未成年子女）申请贷款购买商品住房时，家庭成员在当地名下无成套住房的，不论是否已利用贷款购买过住房，银行业金融机构均按首套住房执行信贷政策。
+
+第三，加大保障性住房建设。2025年计划建设筹集保障性租赁住房400万套（间），新开工建设棚户区改造住房200万套，发放公租房租赁补贴50万户。对于符合条件的住房困难家庭，实现应保尽保。
+
+第四，规范房地产市场秩序。加强对房地产开发企业、中介机构的监管，严肃查处虚假宣传、价格欺诈、捂盘惜售等违法违规行为。完善商品房预售资金监管制度，防范项目烂尾风险。
+
+第五，推进房地产税立法和改革。稳步推进房地产税立法，在总结试点经验基础上，适时扩大试点范围。房地产税将按照"立法先行、充分授权、分步推进"的原则，逐步建立现代房地产税收制度。
+
+专家认为，这些政策体现了"稳地价、稳房价、稳预期"的调控目标，有利于促进房地产市场长期平稳健康发展。但也要看到，房地产市场企稳回升的基础还不牢固，需要继续加大政策支持力度。
+
+住房城乡建设部表示，将密切跟踪市场形势变化，及时调整完善政策，确保房地产市场平稳健康发展，更好满足居民的合理住房需求。`,
+    sourceName: '财经周刊',
+    publishedAt: new Date(Date.now() - 43200000).toISOString(),
+    importanceScore: 0.82,
+    category: '财经',
+    categorySlug: 'business',
+    keywords: ['房地产', '调控', '住房']
+  }
+];
+
+const server = http.createServer(async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const parsedUrl = url.parse(req.url, true);
+
+  // 记录API请求
+  if (parsedUrl.pathname.startsWith('/api/v1/news')) {
+    console.log(`[API] ${req.method} ${parsedUrl.pathname} - Origin: ${req.headers.origin || 'none'}`);
+  }
+
+  if (parsedUrl.pathname === '/health') {
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({status: 'ok', timestamp: new Date().toISOString()}));
+    return;
+  }
+  
+  if (parsedUrl.pathname === '/api/v1/news') {
+    try {
+      const query = parsedUrl.query || {};
+      const allNews = await newsService.getLatestNews();
+
+      let filteredNews = [...allNews];
+
+      // 分类过滤
+      if (query.category) {
+        const categoryMap = {politics: '时政', business: '财经', technology: '科技', world: '国际'};
+        const categoryName = categoryMap[query.category];
+        if (categoryName) {
+          filteredNews = filteredNews.filter(n => n.category === categoryName);
+        }
+      }
+
+      const page = parseInt(query.page || '1');
+      const limit = parseInt(query.limit || '20');
+      const start = (page - 1) * limit;
+      const items = filteredNews.slice(start, start + limit);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        data: items,
+        pagination: {
+          total: filteredNews.length,
+          page,
+          limit,
+          totalPages: Math.ceil(filteredNews.length / limit)
+        },
+        meta: {
+          source: '真实新闻源',
+          lastUpdate: new Date().toISOString()
+        }
+      }));
+    } catch (error) {
+      console.error('获取新闻失败:', error.message);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取新闻失败', message: error.message}));
+    }
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/news/search') {
+    const query = parsedUrl.query.q;
+    if (!query) {
+      res.writeHead(400, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Query parameter q is required'}));
+      return;
+    }
+
+    // 使用 querystring 正确解析 URL 编码的参数
+    const queryString = require('querystring');
+    let decodedQuery = queryString.parse(parsedUrl.query).q || query;
+
+    // 如果解码后还是乱码，尝试使用 iconv-lite 转换编码
+    if (decodedQuery && /[\x80-\xFF]/.test(decodedQuery)) {
+      try {
+        const iconv = require('iconv-lite');
+        const buffer = Buffer.from(decodedQuery, 'latin1');
+        decodedQuery = iconv.decode(buffer, 'utf8');
+        console.log('[Search] Converted encoding');
+      } catch (e) {
+        console.log('[Search] Iconv not available, using as-is');
+      }
+    }
+
+    console.log('[Search] Raw query:', query);
+    console.log('[Search] Decoded query:', decodedQuery);
+
+    try {
+      // 从真实新闻源获取新闻
+      const allNews = await newsService.getLatestNews();
+      console.log('[Search] Total news:', allNews.length);
+
+      const q = (decodedQuery || query).toLowerCase();
+
+      const filtered = allNews.filter(n =>
+        n.title?.toLowerCase().includes(q) ||
+        n.description?.toLowerCase().includes(q) ||
+        n.content?.toLowerCase().includes(q) ||
+        n.summaryAi?.toLowerCase().includes(q) ||
+        n.category?.toLowerCase().includes(q) ||
+        (n.keywords && n.keywords.some(k => k.toLowerCase().includes(q)))
+      );
+
+      console.log('[Search] Filtered results:', filtered.length);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({data: filtered}));
+      return;
+    } catch (error) {
+      console.error('[API] Search error:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Search failed', data: []}));
+      return;
+    }
+  }
+
+  if (parsedUrl.pathname.startsWith('/api/v1/news/')) {
+    const id = decodeURIComponent(parsedUrl.pathname.split('/').pop());
+
+    try {
+      // 从真实新闻源获取新闻
+      const allNews = await newsService.getLatestNews();
+      const item = allNews.find(n => n.id === id);
+
+      if (!item) {
+        // 如果真实新闻中没有，回退到 mockNews
+        const mockItem = mockNews.find(n => n.id === id);
+        if (!mockItem) {
+          res.writeHead(404, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'News not found'}));
+          return;
+        }
+
+        // 使用 mock 数据
+        const marketAnalysis = await marketAnalysisAgent.generateMarketAnalysis(mockItem);
+        const enhancedNews = {
+          ...mockItem,
+          summary: mockItem.description?.substring(0, 100) + '...',
+          background: `这是一篇关于${mockItem.category}的重要新闻。${mockItem.description}`,
+          relatedEvents: ['相关事件正在持续跟进中', '后续报道敬请关注'],
+          impactAnalysis: {
+            economic: '该事件对经济产生影响，市场将持续关注。',
+            political: '政策层面将会有相关配套措施出台。',
+            market: '市场反应较为积极，投资者信心有所提升。',
+            future: '后续发展值得持续关注。'
+          },
+          marketAnalysis: marketAnalysis
+        };
+
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify(enhancedNews));
+        return;
+      }
+
+      // 生成股市分析
+      const marketAnalysis = await marketAnalysisAgent.generateMarketAnalysis(item);
+
+      // 构建增强的新闻对象
+      const enhancedNews = {
+        ...item,
+        summary: item.summaryAi || item.description?.substring(0, 100) + '...',
+        background: item.description || `这是一篇关于${item.category}的重要新闻。`,
+        relatedEvents: ['相关事件正在持续跟进中', '后续报道敬请关注'],
+        impactAnalysis: {
+          economic: '该事件对经济产生影响，市场将持续关注。',
+          political: '政策层面将会有相关配套措施出台。',
+          market: '市场反应较为积极，投资者信心有所提升。',
+          future: '后续发展值得持续关注。'
+        },
+        marketAnalysis: marketAnalysis
+      };
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(enhancedNews));
+    } catch (error) {
+      console.error('获取新闻详情失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Failed to fetch news detail'}));
+    }
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/ai/daily-brief' && req.method === 'GET') {
+    const brief = await aiService.generateDailyBrief(mockNews);
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({date: new Date().toISOString().split('T')[0], brief}));
+    return;
+  }
+
+  // 生成智能股市公告
+  if (parsedUrl.pathname === '/api/v1/market/bulletin' && req.method === 'GET') {
+    try {
+      console.log('生成真实股市公告（基于市场数据）...');
+      const bulletin = await marketBulletinService.generateDailyBulletin();
+
+      // 添加元数据
+      const response = {
+        ...bulletin,
+        meta: {
+          version: '2.0',
+          agentName: '真实市场数据服务',
+          generatedAt: new Date().toISOString(),
+          dataSource: '东方财富网官方API',
+          dataAccuracy: 'verified'
+        }
+      };
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(response));
+    } catch (error) {
+      console.error('生成公告失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        error: '生成公告失败',
+        message: error.message
+      }));
+    }
+    return;
+  }
+
+  // 获取学习进度
+  if (parsedUrl.pathname === '/api/v1/market/learning-progress' && req.method === 'GET') {
+    try {
+      const progress = await marketBulletinAgent.getLearningProgress();
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(progress));
+    } catch (error) {
+      console.error('获取学习进度失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 获取主要指数实时行情（A股、美股、港股）- 使用新的实时数据服务
+  if (parsedUrl.pathname === '/api/v1/market/indices' && req.method === 'GET') {
+    try {
+      const indices = await realTimeMarketService.getAllIndices();
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(indices));
+    } catch (error) {
+      console.error('获取指数失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 获取市场状态 - 使用新的实时数据服务
+  if (parsedUrl.pathname === '/api/v1/market/status' && req.method === 'GET') {
+    try {
+      const marketStatus = realTimeMarketService.getMarketStatus();
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(marketStatus));
+    } catch (error) {
+      console.error('获取市场状态失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 新增：获取热门板块
+  if (parsedUrl.pathname === '/api/v1/market/sectors' && req.method === 'GET') {
+    try {
+      const sectors = await realTimeMarketService.getHotSectors();
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(sectors));
+    } catch (error) {
+      console.error('获取板块数据失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 新增：获取市场情绪
+  if (parsedUrl.pathname === '/api/v1/market/sentiment' && req.method === 'GET') {
+    try {
+      const sentiment = await realTimeMarketService.getMarketSentiment();
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(sentiment));
+    } catch (error) {
+      console.error('获取市场情绪失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 新增：获取调度器状态
+  if (parsedUrl.pathname === '/api/v1/market/scheduler/status' && req.method === 'GET') {
+    try {
+      const status = marketDataScheduler.getStatus();
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(status));
+    } catch (error) {
+      console.error('获取调度器状态失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 获取指数历史行情（多周期）
+  if (parsedUrl.pathname.startsWith('/api/v1/market/indices/history') && req.method === 'GET') {
+    try {
+      const urlParams = new URLSearchParams(req.url.split('?')[1]);
+      const period = urlParams.get('period') || '1m'; // 1d, 5d, 7d, 1m, 3m, 1y
+
+      const history = await marketDataService.getMajorIndicesHistory(period);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        period,
+        data: history,
+        updateTime: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('获取历史数据失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  // 获取单个指数K线数据
+  if (parsedUrl.pathname.startsWith('/api/v1/market/chart/') && req.method === 'GET') {
+    try {
+      const code = parsedUrl.pathname.split('/').pop();
+      const urlParams = new URLSearchParams(req.url.split('?')[1]);
+      const period = urlParams.get('period') || '1m';
+
+      const chartData = await marketDataService.getIndexHistory(code, period);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(chartData));
+    } catch (error) {
+      console.error('获取K线数据失败:', error);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: error.message}));
+    }
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/ai/chat' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const response = await aiService.chat(data.message || data.question, mockNews);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify(response));
+      } catch (e) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: 'Invalid JSON'}));
+      }
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/bookmarks' && req.method === 'GET') {
+    // Get user ID from token (optional, for now return all)
+    const userId = 1; // TODO: Get from auth token
+
+    bookmarkService.getUserBookmarks(userId).then(userBookmarks => {
+      const bookmarksWithNews = userBookmarks.map(b => ({
+        ...b,
+        news: mockNews.find(n => n.id === b.newsId)
+      })).filter(b => b.news);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({data: bookmarksWithNews}));
+    }).catch(err => {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Failed to fetch bookmarks'}));
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/bookmarks' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const userId = 1; // TODO: Get from auth token
+
+        const result = await bookmarkService.addBookmark(userId, data.newsId);
+
+        if (result.success) {
+          res.writeHead(201, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify(result.bookmark));
+        } else {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: result.error}));
+        }
+      } catch (e) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: 'Invalid JSON'}));
+      }
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname.startsWith('/api/v1/bookmarks/') && req.method === 'DELETE') {
+    const newsId = parsedUrl.pathname.split('/').pop();
+    const userId = 1; // TODO: Get from auth token
+
+    bookmarkService.removeBookmark(userId, newsId).then(result => {
+      if (result.success) {
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({success: true}));
+      } else {
+        res.writeHead(404, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: result.error}));
+      }
+    }).catch(err => {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Failed to remove bookmark'}));
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname.startsWith('/api/v1/bookmarks/check/') && req.method === 'GET') {
+    const newsId = parsedUrl.pathname.split('/').pop();
+    const userId = 1; // TODO: Get from auth token
+
+    bookmarkService.isBookmarked(userId, newsId).then(bookmarked => {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({bookmarked}));
+    }).catch(err => {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Failed to check bookmark'}));
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/history' && req.method === 'GET') {
+    const userId = 1; // TODO: Get from auth token
+
+    historyService.getUserReadingHistory(userId).then(userHistory => {
+      const historyWithNews = userHistory.map(h => ({
+        ...h,
+        news: mockNews.find(n => n.id === h.newsId)
+      })).filter(h => h.news);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({data: historyWithNews}));
+    }).catch(err => {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Failed to fetch history'}));
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/history' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const userId = 1; // TODO: Get from auth token
+        const duration = data.duration || 0;
+
+        const result = await historyService.addReadingHistory(userId, data.newsId, duration);
+
+        if (result.success) {
+          res.writeHead(201, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify(result.record));
+        } else {
+          res.writeHead(500, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: result.error}));
+        }
+      } catch (e) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: 'Invalid JSON'}));
+      }
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/history' && req.method === 'DELETE') {
+    history = [];
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({success: true}));
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/settings/api-key') {
+    if (req.method === 'GET') {
+      const status = aiService.getApiKeyStatus();
+      const keyPrefix = status.hasKey ? '***' : '';
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        hasKey: status.hasKey,
+        keyPrefix,
+        provider: status.provider,
+        keys: status.keys
+      }));
+      return;
+    } else if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          if (data.apiKey) {
+            // Support both old format (just apiKey) and new format (provider + apiKey)
+            const provider = data.provider || aiService.AI_PROVIDERS.CLAUDE;
+            aiService.setApiKey(provider, data.apiKey);
+          }
+          res.writeHead(200, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({success: true}));
+        } catch (e) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Invalid JSON'}));
+        }
+      });
+      return;
+    }
+  }
+
+  // AI provider endpoint
+  if (parsedUrl.pathname === '/api/v1/settings/ai-provider') {
+    if (req.method === 'GET') {
+      const provider = aiService.getProvider();
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({provider}));
+      return;
+    } else if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          if (data.provider && aiService.setProvider(data.provider)) {
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({success: true, provider: data.provider}));
+          } else {
+            res.writeHead(400, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({error: 'Invalid provider'}));
+          }
+        } catch (e) {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: 'Invalid JSON'}));
+        }
+      });
+      return;
+    }
+  }
+
+  // Auth endpoints
+  if (parsedUrl.pathname === '/api/v1/auth/register' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const result = await authService.register(data.email, data.password);
+
+        if (result.success) {
+          res.writeHead(201, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify(result));
+        } else {
+          res.writeHead(400, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: result.error}));
+        }
+      } catch (e) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: 'Invalid JSON'}));
+      }
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/auth/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const result = await authService.login(data.email, data.password);
+
+        if (result.success) {
+          res.writeHead(200, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify(result));
+        } else {
+          res.writeHead(401, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: result.error}));
+        }
+      } catch (e) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: 'Invalid JSON'}));
+      }
+    });
+    return;
+  }
+
+  if (parsedUrl.pathname === '/api/v1/auth/me' && req.method === 'GET') {
+    const authHeader = req.headers['authorization'];
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'No token provided'}));
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    const auth = authService.authenticateToken(token);
+
+    if (!auth) {
+      res.writeHead(401, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: 'Invalid token'}));
+      return;
+    }
+
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({user: {id: auth.userId, email: auth.email}}));
+    return;
+  }
+
+  // AI学习系统路由
+  // 获取今日学习摘要
+  if (parsedUrl.pathname === '/api/v1/ai-learning/summary' && req.method === 'GET') {
+    try {
+      const summary = await aiLearningService.getTodaySummary();
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        success: true,
+        data: summary || {message: '今日暂无学习记录', log_date: new Date().toISOString().split('T')[0]}
+      }));
+    } catch (e) {
+      console.error('[API] 获取学习摘要失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取学习摘要失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 获取学习统计
+  if (parsedUrl.pathname === '/api/v1/ai-learning/stats' && req.method === 'GET') {
+    try {
+      const days = parseInt(parsedUrl.query.days) || 30;
+      const stats = await aiLearningService.getLearningStats(days);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, data: {days, stats}}));
+    } catch (e) {
+      console.error('[API] 获取学习统计失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取学习统计失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 手动触发新闻学习
+  if (parsedUrl.pathname === '/api/v1/ai-learning/learn-news' && req.method === 'POST') {
+    try {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          console.log('[API] 手动触发新闻学习');
+          const result = await scheduler.triggerNewsLearning();
+          res.writeHead(200, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({success: true, message: '新闻学习完成', data: result}));
+        } catch (e) {
+          console.error('[API] 新闻学习失败:', e);
+          res.writeHead(500, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: '新闻学习失败', message: e.message}));
+        }
+      });
+    } catch (e) {
+      console.error('[API] 请求处理失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '请求处理失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 手动触发公告学习
+  if (parsedUrl.pathname === '/api/v1/ai-learning/learn-bulletins' && req.method === 'POST') {
+    try {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const stockCode = parsedUrl.query.stock || null;
+          console.log('[API] 手动触发公告学习', stockCode ? `股票: ${stockCode}` : '');
+          const result = await scheduler.triggerBulletinLearning(stockCode);
+          res.writeHead(200, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({success: true, message: '公告学习完成', data: result}));
+        } catch (e) {
+          console.error('[API] 公告学习失败:', e);
+          res.writeHead(500, {'Content-Type': 'application/json'});
+          res.end(JSON.stringify({error: '公告学习失败', message: e.message}));
+        }
+      });
+    } catch (e) {
+      console.error('[API] 请求处理失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '请求处理失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 获取事件列表
+  if (parsedUrl.pathname === '/api/v1/ai-learning/events' && req.method === 'GET') {
+    try {
+      const limit = parseInt(parsedUrl.query.limit) || 50;
+      const offset = parseInt(parsedUrl.query.offset) || 0;
+      const pool = require('./db').getPool();
+      const result = await pool.query(
+        'SELECT * FROM event_memory ORDER BY event_date DESC, importance DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
+      );
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, data: result.rows}));
+    } catch (e) {
+      console.error('[API] 获取事件列表失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取事件列表失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 获取市场数据记录
+  if (parsedUrl.pathname === '/api/v1/ai-learning/market' && req.method === 'GET') {
+    try {
+      const limit = parseInt(parsedUrl.query.limit) || 30;
+      const offset = parseInt(parsedUrl.query.offset) || 0;
+      const pool = require('./db').getPool();
+      const result = await pool.query(
+        'SELECT * FROM market_memory ORDER BY trade_date DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
+      );
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, data: result.rows}));
+    } catch (e) {
+      console.error('[API] 获取市场数据失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取市场数据失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 获取关联分析结果
+  if (parsedUrl.pathname.match(/^\/api\/v1\/ai-learning\/correlations\//) && req.method === 'GET') {
+    try {
+      const date = parsedUrl.pathname.split('/').pop();
+      const pool = require('./db').getPool();
+      const result = await pool.query(
+        'SELECT * FROM news_market_correlation WHERE analysis_date = $1',
+        [date]
+      );
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, data: result.rows}));
+    } catch (e) {
+      console.error('[API] 获取关联分析失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取关联分析失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 启动调度器
+  if (parsedUrl.pathname === '/api/v1/ai-learning/scheduler/start' && req.method === 'POST') {
+    try {
+      scheduler.start();
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, message: '调度器已启动'}));
+    } catch (e) {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '启动调度器失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 停止调度器
+  if (parsedUrl.pathname === '/api/v1/ai-learning/scheduler/stop' && req.method === 'POST') {
+    try {
+      scheduler.stop();
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, message: '调度器已停止'}));
+    } catch (e) {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '停止调度器失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 获取调度器状态
+  if (parsedUrl.pathname === '/api/v1/ai-learning/scheduler/status' && req.method === 'GET') {
+    try {
+      const status = scheduler.getStatus();
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({success: true, data: status}));
+    } catch (e) {
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取调度器状态失败', message: e.message}));
+    }
+    return;
+  }
+
+  // ==================== 股市公告API ====================
+
+  // 获取最新公告列表
+  if (parsedUrl.pathname === '/api/v1/bulletins' && req.method === 'GET') {
+    try {
+      const stockCode = parsedUrl.query.stock || null;
+      const limit = parseInt(parsedUrl.query.limit) || 50;
+
+      const bulletins = await stockBulletinScraper.getLatestBulletins(stockCode, limit);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          bulletins: bulletins,
+          total: bulletins.length,
+          stockCode: stockCode || 'all'
+        }
+      }));
+    } catch (e) {
+      console.error('[API] 获取公告失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取公告失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 根据股票代码获取公告
+  if (parsedUrl.pathname.match(/^\/api\/v1\/bulletins\/stock\/(.+)$/) && req.method === 'GET') {
+    try {
+      const stockCode = parsedUrl.pathname.split('/').pop();
+      const limit = parseInt(parsedUrl.query.limit) || 50;
+
+      const bulletins = await stockBulletinScraper.getBulletinsByStock(stockCode, limit);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          stockCode: stockCode,
+          bulletins: bulletins,
+          total: bulletins.length
+        }
+      }));
+    } catch (e) {
+      console.error('[API] 获取股票公告失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取股票公告失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 根据关键词搜索公告
+  if (parsedUrl.pathname === '/api/v1/bulletins/search' && req.method === 'GET') {
+    try {
+      const keyword = parsedUrl.query.q;
+      const stockCode = parsedUrl.query.stock || null;
+
+      if (!keyword) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: '请提供搜索关键词'}));
+        return;
+      }
+
+      const bulletins = await stockBulletinScraper.filterBulletinsByKeyword(keyword, stockCode);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          keyword: keyword,
+          bulletins: bulletins,
+          total: bulletins.length
+        }
+      }));
+    } catch (e) {
+      console.error('[API] 搜索公告失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '搜索公告失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 根据类型筛选公告
+  if (parsedUrl.pathname === '/api/v1/bulletins/type' && req.method === 'GET') {
+    try {
+      const type = parsedUrl.query.type;
+      const stockCode = parsedUrl.query.stock || null;
+
+      if (!type) {
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: '请提供公告类型'}));
+        return;
+      }
+
+      const bulletins = await stockBulletinScraper.filterBulletinsByType(type, stockCode);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          type: type,
+          bulletins: bulletins,
+          total: bulletins.length
+        }
+      }));
+    } catch (e) {
+      console.error('[API] 筛选公告失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '筛选公告失败', message: e.message}));
+    }
+    return;
+  }
+
+  // 获取公告统计
+  if (parsedUrl.pathname === '/api/v1/bulletins/stats' && req.method === 'GET') {
+    try {
+      const days = parseInt(parsedUrl.query.days) || 7;
+      const stats = await stockBulletinScraper.getBulletinStats(days);
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        success: true,
+        data: stats
+      }));
+    } catch (e) {
+      console.error('[API] 获取公告统计失败:', e);
+      res.writeHead(500, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: '获取公告统计失败', message: e.message}));
+    }
+    return;
+  }
+
+  res.writeHead(200, {'Content-Type': 'application/json'});
+  res.end(JSON.stringify({name: 'Political News Assistant API', version: '1.0.0-demo', status: 'ok', demoMode: true}));
+});
+
+server.listen(PORT, async () => {
+  console.log('Server running on port ' + PORT);
+
+  // 启动新闻自动抓取调度器（每30分钟抓取一次）
+  console.log('[新闻] 启动自动抓取调度器...');
+  newsScheduler.start(30); // 30分钟间隔
+  console.log('[新闻] 调度器已启动');
+});
