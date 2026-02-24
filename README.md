@@ -1,16 +1,16 @@
-# 时政新闻助手 (Political News Assistant)
+# AI智能投资决策助手 (AI Investment Decision Assistant)
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D20.9.0-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**智能时政新闻聚合与AI助手平台**
+**基于时政财经新闻的AI驱动智能投资决策系统**
 
-一个专注于时政、财经、政治新闻的智能聚合平台，提供AI驱动的新闻摘要、智能分析和个性化推荐。
+透过时政财经新闻的表象，AI帮您发现投资机会，提前布局，精准决策。
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [部署指南](#-部署指南) • [API文档](#-api文档)
+[核心功能](#-核心功能) • [产品方案](#-产品方案) • [技术架构](#-技术架构) • [快速开始](#-快速开始)
 
 </div>
 
@@ -18,12 +18,16 @@
 
 ## 📋 项目概述
 
-时政新闻助手是一个全栈Web应用，旨在帮助用户：
+AI智能投资决策助手是一个基于AI的智能投资决策支持系统，通过分析时政财经新闻，为用户提供：
 
-- **高效获取信息** - 整合多个时政新闻源，一站式获取关键信息
-- **智能过滤** - 自动过滤娱乐类信息，专注核心内容
-- **AI深度分析** - 每日时政要闻智能归纳，支持对话式追问
-- **个性化体验** - 用户认证、收藏、历史记录等功能
+- **信息降噪** - 5分钟读完重要新闻，自动过滤无关信息
+- **洞察发现** - 识别常人忽视的蛛丝马迹，提前发现投资机会
+- **决策支持** - 明确到股票代码的操作建议，量化风险评估
+
+### 核心转变
+
+**从**: "时政新闻助手"（新闻聚合工具）
+**到**: "AI智能投资决策助手"（投资决策系统）
 
 ### 技术栈
 
@@ -32,436 +36,234 @@
 - React 18
 - TypeScript
 - TailwindCSS
-- Zustand (状态管理)
+- shadcn/ui
 
 **后端**
 - Node.js
-- Express-style HTTP server
-- JWT认证
-- PostgreSQL (可选，生产环境推荐)
-- Anthropic Claude API (AI功能)
+- Express API
+- PostgreSQL
+- FinGPT (金融大语言模型)
+- TA-Lib (技术分析)
+- ChromaDB (向量数据库)
+
+**AI能力**
+- Anthropic Claude API (事件提取)
+- FinBERT (情感分析)
+- FinGPT (金融分析)
+- RAG增强检索
 
 ---
 
-## ✨ 功能特性
+## ✨ 核心功能
 
-### 核心功能
+### 1. 智能新闻分析
 
-- ✅ **新闻聚合展示** - 多源新闻聚合，支持分类浏览（时政、财经、科技、国际）
-- ✅ **智能搜索** - 支持中英文关键词搜索，实时过滤
-- ✅ **AI每日简报** - 自动生成每日时政要闻摘要
-- ✅ **AI对话助手** - 支持自然语言追问，深度分析新闻话题
-- ✅ **用户认证系统** - 注册、登录、JWT令牌验证
-- ✅ **个人中心** - 用户资料、阅读统计、收藏管理
-- ✅ **通知设置** - 每日简报推送时间自定义
-- ✅ **响应式设计** - 完美支持桌面和移动设备
+- ✅ **事件自动提取** - 从新闻中自动识别重要事件
+- ✅ **情感分析** - 分析新闻对市场的影响方向
+- ✅ **板块映射** - 自动关联受影响的板块和股票
+- ✅ **相似事件检索** - 基于历史案例对比分析
 
-### 高级功能（开发中）
+### 2. 多维度市场分析
 
-- 🔜 **实时新闻推送** - WebSocket实时更新
-- 🔜 **邮件订阅** - 每日简报邮件推送
-- 🔜 **深度数据挖掘** - 话题趋势分析
-- 🔜 **多语言支持** - 国际版内容
-- 🔜 **桌面应用** - Tauri打包的跨平台桌面客户端
+- ✅ **技术分析** - MACD、RSI、KDJ、BOLL等技术指标
+- ✅ **资金流向** - 主力资金、北向资金追踪
+- ✅ **板块轮动** - 识别热点板块切换
+- ✅ **综合评分** - 多维度量化评分系统
+
+### 3. 投资决策建议
+
+- ✅ **明确建议** - 买入/卖出/持有建议
+- ✅ **目标价位** - 第一目标、第二目标价位
+- ✅ **风险提示** - 量化风险评估
+- ✅ **止损止盈** - 具体的止损止盈点位
+
+### 4. 持续学习优化
+
+- ✅ **决策追踪** - 记录所有投资建议和实际结果
+- ✅ **准确率评估** - 持续评估模型准确性
+- ✅ **参数优化** - 基于反馈自动调优
+
+---
+
+## 📊 产品方案
+
+### 文档导航
+
+#### 核心文档（必读）
+
+| 文档 | 说明 | 阅读时间 |
+|-----|------|---------|
+| [产品重构方案](PRODUCT_RESTRUCTURE_PLAN.md) | 产品定位、市场调研、架构设计 | 15分钟 |
+| [技术实现规格](TECHNICAL_SPECIFICATION.md) | 技术架构、代码实现、API设计 | 30分钟 |
+| [实施路线图](IMPLEMENTATION_ROADMAP.md) | 11周开发计划、任务分解 | 20分钟 |
+| [文档审查清单](DOCUMENTATION_REVIEW.md) | 实现细节、风险分析 | 15分钟 |
+
+#### 快速索引
+- 📖 [文档索引中心](DOCS_INDEX.md) - 完整的文档导航
+- 📋 [产品需求文档](PRODUCT_REQUIREMENTS.md) - PRD和需求
+- 🧪 [测试报告](docs/tests/TEST_REPORT_2026-02-24.md) - 测试验证报告
+
+#### 使用指南
+- 🚀 [快速开始](docs/guides/QUICK_START_GUIDE.md) - 5分钟上手
+- 🔑 [API密钥配置](docs/guides/API_KEY_GUIDE.md) - API设置
+- 🚀 [部署指南](docs/guides/DEPLOYMENT_GUIDE.md) - 部署说明
+- ☁️ [阿里云ECS购买](docs/guides/ALIYUN_ECS_BUYING_GUIDE.md) - 服务器购买
+
+---
+
+## 🏗️ 技术架构
+
+### 三层架构模型
+
+```
+        ┌─────────────────────┐
+        │   决策层 (Decision)  │
+        │  - 投资建议生成       │  ← 给出明确建议
+        │  - 风险评估          │     (具体到股票代码)
+        │  - 决策追踪          │
+        ├─────────────────────┤
+        │   分析层 (Analysis)  │
+        │  - 新闻分析引擎       │  ← 多维度深度分析
+        │  - 市场分析引擎       │     (事件+技术+资金+板块)
+        │  - 综合评分系统       │
+        ├─────────────────────┤
+        │   数据层 (Data)      │
+        │  - 新闻数据采集       │  ← 多源数据采集
+        │  - 行情数据采集       │     (新闻+行情+资金+宏观)
+        │  - 向量数据库         │
+        └─────────────────────┘
+```
+
+### 核心算法
+
+#### 综合评分公式
+```
+总分 = 新闻面(30%) + 技术面(30%) + 资金面(20%) + 板块面(20%)
+
+其中:
+- 新闻面得分 = Σ(事件重要性 × 影响力度 × 情感分数)
+- 技术面得分 = 基于MACD/RSI/KDJ的综合评分
+- 资金面得分 = 基于主力资金流向的评分
+- 板块面得分 = 板块热度 + 轮动预期
+```
 
 ---
 
 ## 🚀 快速开始
 
-### 前置要求
+### 环境要求
 
-- **Node.js**: >= 20.9.0 (必需)
-- **PostgreSQL**: >= 13 (可选，开发环境可用内存数据库)
-- **npm** 或 **yarn**
+- Node.js >= 20.9.0
+- PostgreSQL >= 13 (可选)
+- Anthropic API Key
+- Tushare Token (可选)
 
-### 安装与运行
+### 安装步骤
 
-1. **克隆项目**
 ```bash
+# 1. 克隆项目
 git clone <repository-url>
 cd political-news-assistant
-```
 
-2. **后端设置**
-```bash
+# 2. 安装后端依赖
 cd src/backend
 npm install
-node simple-server.js
-```
-后端将运行在 `http://localhost:3001`
 
-3. **前端设置**
-```bash
+# 3. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入API密钥
+
+# 4. 启动后端
+npm start
+
+# 5. 安装前端依赖
 cd src/frontend
 npm install
+
+# 6. 启动前端
 npm run dev
 ```
-前端将运行在 `http://localhost:3000`
 
-4. **访问应用**
-打开浏览器访问 `http://localhost:3000`
+### 访问应用
 
-### Docker 部署（推荐）
-
-```bash
-# 构建并启动所有服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
+- 前端: http://localhost:3000
+- 后端API: http://localhost:3001
+- API文档: http://localhost:3001/api-docs
 
 ---
 
-## 📡 API文档
+## 📈 项目进度
 
-### 认证相关
+### 当前状态: v2.0 开发中
 
-#### 注册用户
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
+**已完成**:
+- ✅ 产品调研和定位分析
+- ✅ 技术方案设计完成
+- ✅ 实施路线图制定
+- ✅ 核心文档完成
 
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
+**进行中**:
+- ⏳ Phase 1: 数据层建设 (2周)
+- ⏳ Phase 2: 决策引擎开发 (3周)
+- ⏳ Phase 3: 模型优化 (4周)
+- ⏳ Phase 4: 产品化 (2周)
 
-Response 201:
-{
-  "success": true,
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com"
-  }
-}
-```
-
-#### 用户登录
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-
-Response 200:
-{
-  "success": true,
-  "token": "jwt-token",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com"
-  }
-}
-```
-
-#### 验证令牌
-```http
-GET /api/v1/auth/me
-Authorization: Bearer <token>
-
-Response 200:
-{
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com"
-  }
-}
-```
-
-### 新闻相关
-
-#### 获取所有新闻
-```http
-GET /api/v1/news
-
-Response 200:
-{
-  "data": [...],
-  "pagination": {
-    "total": 100,
-    "page": 1,
-    "limit": 20
-  }
-}
-```
-
-#### 搜索新闻
-```http
-GET /api/v1/news/search?q=关键词
-
-Response 200:
-{
-  "data": [...]
-}
-```
-
-#### 分类筛选
-```http
-GET /api/v1/news?category=business
-
-Response 200:
-{
-  "data": [...],
-  "pagination": {...}
-}
-```
-
-#### 新闻详情
-```http
-GET /api/v1/news/:id
-
-Response 200:
-{
-  "id": "1",
-  "title": "新闻标题",
-  "description": "描述",
-  "category": "财经"
-}
-```
-
-### AI功能
-
-#### 获取每日简报
-```http
-GET /api/v1/ai/daily-brief
-
-Response 200:
-{
-  "date": "2026-02-15",
-  "brief": {
-    "summary": "摘要内容",
-    "keyPoints": [...],
-    "importance": "高"
-  }
-}
-```
-
-#### AI对话
-```http
-POST /api/v1/ai/chat
-Content-Type: application/json
-Authorization: Bearer <token>
-
-{
-  "message": "今天有哪些重要新闻？"
-}
-
-Response 200:
-{
-  "response": "AI回复内容"
-}
-```
+**预计完成**: 2026-05-10
 
 ---
 
-## 🏗️ 项目结构
+## 🎯 核心优势
+
+### 与传统工具对比
+
+| 维度 | 传统工具 | AI投资决策助手 |
+|-----|---------|---------------|
+| **信息筛选** | 手动搜索阅读 | AI自动过滤 |
+| **分析时间** | 1-2小时 | 5分钟 |
+| **决策支持** | 依赖个人判断 | AI给出明确建议 |
+| **具体程度** | 只有板块方向 | 具体到股票代码 |
+| **风险评估** | 定性描述 | 量化评分 |
+| **历史验证** | 无 | 有准确率追踪 |
+
+### 预期效果
+
+- **决策准确率**: >70%
+- **信息筛选时间**: 减少96% (从2小时→5分钟)
+- **投资准确率**: 提升10-20个百分点
+
+---
+
+## 📚 文档结构
 
 ```
-political-news-assistant/
-├── docs/                      # 文档目录
-│   ├── prd/                  # 产品需求文档
-│   ├── design/               # 设计文档
-│   └── tests/                # 测试文档
+project-root/
+├── README.md (本文件)
+├── [核心文档].md (6个)
+├── docs/
+│   ├── archive/ (历史文档归档)
+│   ├── guides/ (使用指南)
+│   ├── tests/ (测试报告)
+│   ├── design/ (设计文档)
+│   └── prd/ (产品需求)
 ├── src/
-│   ├── backend/              # 后端服务
-│   │   ├── simple-server.js  # 主服务器文件
-│   │   ├── auth-service.js   # 认证服务
-│   │   ├── db.js            # 数据库配置
-│   │   ├── claude-service.js # AI服务
-│   │   └── package.json
-│   └── frontend/            # 前端应用
-│       ├── app/             # Next.js App Router
-│       │   ├── page.tsx    # 首页
-│       │   ├── auth/       # 认证页面
-│       │   ├── settings/   # 设置页面
-│       │   └── profile/    # 个人中心
-│       ├── components/      # React组件
-│       ├── lib/           # 工具库
-│       └── package.json
-├── DEPLOYMENT.md          # 部署指南
-├── DEVELOPMENT.md        # 开发指南
-└── README.md           # 本文件
+│   ├── backend/ (后端代码)
+│   └── frontend/ (前端代码)
+└── [其他文档]
 ```
 
----
+### 文档快速索引
 
-## ⚙️ 配置说明
-
-### 后端环境变量 (.env)
-
-```bash
-# 服务器配置
-NODE_ENV=development
-PORT=3001
-
-# 数据库
-DATABASE_URL=postgresql://user:password@localhost:5432/political_news
-
-# JWT密钥（生产环境必须更改）
-JWT_SECRET=your-secret-key-change-this-in-production
-JWT_EXPIRY=7d
-
-# Claude API（AI功能）
-ANTHROPIC_API_KEY=sk-ant-your-key-here
-```
-
-### 前端环境变量 (.env.local)
-
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:3001
-```
-
----
-
-## 🧪 测试
-
-### 运行测试套件
-
-```bash
-# 后端E2E测试
-cd src/backend
-node test-all-endpoints.mjs
-
-# 单独测试认证
-node test-auth.mjs
-```
-
-### 测试覆盖
-
-当前测试覆盖：
-- ✅ 健康检查
-- ✅ 新闻列表、搜索、分类筛选
-- ✅ 用户注册、登录、令牌验证
-- ✅ AI每日简报、对话
-- ✅ 错误处理（重复注册、错误密码、无效令牌）
-- ✅ CORS配置
-
----
-
-## 📦 部署指南
-
-详细部署指南请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)
-
-### 快速部署（生产环境）
-
-1. **准备服务器**（Ubuntu 20.04+推荐）
-```bash
-# 安装Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# 安装PostgreSQL
-sudo apt-get install postgresql postgresql-contrib
-```
-
-2. **配置环境变量**
-```bash
-# 后端
-cd src/backend
-cp .env.example .env
-# 编辑 .env 文件设置生产环境变量
-```
-
-3. **使用PM2部署**
-```bash
-# 安装PM2
-npm install -g pm2
-
-# 启动后端
-cd src/backend
-pm2 start simple-server.js --name political-news-backend
-
-# 启动前端
-cd src/frontend
-npm run build
-pm2 start npm --name political-news-frontend -- start
-
-# 保存配置
-pm2 save
-pm2 startup
-```
-
-4. **配置Nginx反向代理**
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    location /api {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-    }
-}
-```
-
----
-
-## 🐛 故障排除
-
-### 常见问题
-
-**Q: 后端启动失败**
-```bash
-# 检查端口占用
-lsof -i :3001
-
-# 查看错误日志
-pm2 logs political-news-backend
-```
-
-**Q: 前端构建失败**
-```bash
-# 检查Node版本
-node --version  # 必须 >= 20.9.0
-
-# 清除缓存
-rm -rf .next node_modules
-npm install
-npm run build
-```
-
-**Q: 数据库连接失败**
-```bash
-# 检查PostgreSQL状态
-sudo systemctl status postgresql
-
-# 测试连接
-psql -U postgres -c "SELECT version();"
-```
-
----
-
-## 📈 性能优化
-
-- ✅ 服务端渲染（SSR）提升首屏加载速度
-- ✅ API响应缓存减少数据库查询
-- ✅ 图片懒加载优化带宽使用
-- ✅ 代码分割减少初始包大小
-- 🔜 CDN加速静态资源
-- 🔜 Redis缓存热点数据
+- 📖 [文档索引中心](DOCS_INDEX.md) - **推荐从这里开始**
+- 📋 [产品重构方案](PRODUCT_RESTRUCTURE_PLAN.md) - 了解产品定位
+- 🔧 [技术实现规格](TECHNICAL_SPECIFICATION.md) - 了解技术实现
+- 📅 [实施路线图](IMPLEMENTATION_ROADMAP.md) - 查看开发计划
+- ✅ [文档审查清单](DOCUMENTATION_REVIEW.md) - 验证文档完整性
 
 ---
 
 ## 🤝 贡献指南
 
-欢迎提交Issue和Pull Request！
+欢迎贡献代码、报告问题或提出建议！
 
 1. Fork本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
@@ -479,16 +281,22 @@ psql -U postgres -c "SELECT version();"
 
 ## 📞 联系方式
 
-- **项目主页**: [GitHub Repository](#)
-- **问题反馈**: [Issues](#)
-- **文档**: [完整文档](./docs/)
+- **项目维护**: Claude Sonnet 4.5
+- **问题反馈**: GitHub Issues
+- **文档更新**: 定期更新，查看Git提交记录
 
 ---
 
-<div align="center">
+## 🙏 致谢
 
-**Made with ❤️ for efficient news consumption**
+感谢以下开源项目的启发：
 
-[⬆ 回到顶部](#时政新闻助手-political-news-assistant)
+- [FinGPT](https://github.com/AI4Finance-Foundation/FinGPT) - 金融大语言模型
+- [QuantConnect LEAN](https://github.com/QuantConnect/Lean) - 算法交易引擎
+- [Awesome Applied Agents for Investment](https://github.com/Sasha-Cui/Awesome-Applied-Agents-for-Investment) - 多智能体投资框架
 
-</div>
+---
+
+**项目版本**: v2.0
+**最后更新**: 2026-02-24
+**文档状态**: ✅ 完整且最新
