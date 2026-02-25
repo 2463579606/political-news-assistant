@@ -119,9 +119,9 @@ class TechnicalScoreService {
     let score = 50; // 基准分
 
     // MA多头排列: MA5 > MA10 > MA20
-    if (data.ma_5 && data.ma_10 && data.ma_20) {
-      const isBullish = data.ma_5 > data.ma_10 && data.ma_10 > data.ma_20;
-      const isBearish = data.ma_5 < data.ma_10 && data.ma_10 < data.ma_20;
+    if (data.ma5 && data.ma10 && data.ma20) {
+      const isBullish = data.ma5 > data.ma10 && data.ma10 > data.ma20;
+      const isBearish = data.ma5 < data.ma10 && data.ma10 < data.ma20;
 
       if (isBullish) {
         score += 20; // 多头排列
@@ -131,7 +131,7 @@ class TechnicalScoreService {
 
       // 价格相对MA的位置
       const price = data.close_price;
-      const ma5 = data.ma_5;
+      const ma5 = data.ma5;
 
       if (price > ma5) {
         score += 10; // 价格在MA5之上
@@ -150,12 +150,12 @@ class TechnicalScoreService {
   calculateMomentumScore(data) {
     let score = 50; // 基准分
 
-    if (data.macd && data.dif && data.dea) {
+    if (data.macd_hist && data.macd && data.macd_signal) {
       // MACD金叉: DIF上穿DEA
       // MACD死叉: DIF下穿DEA
-      const dif = parseFloat(data.dif);
-      const dea = parseFloat(data.dea);
-      const macd = parseFloat(data.macd);
+      const dif = parseFloat(data.macd);
+      const dea = parseFloat(data.macd_signal);
+      const macd = parseFloat(data.macd_hist);
 
       if (dif > dea) {
         score += 10; // DIF在DEA之上
@@ -184,8 +184,8 @@ class TechnicalScoreService {
     let score = 50; // 基准分
 
     // RSI评分
-    if (data.rsi_6) {
-      const rsi = parseFloat(data.rsi_6);
+    if (data.rsi6) {
+      const rsi = parseFloat(data.rsi6);
 
       if (rsi < 30) {
         score += 10; // 超卖，买入机会
@@ -199,10 +199,10 @@ class TechnicalScoreService {
     }
 
     // KDJ评分
-    if (data.k_value && data.d_value && data.j_value) {
-      const k = parseFloat(data.k_value);
-      const d = parseFloat(data.d_value);
-      const j = parseFloat(data.j_value);
+    if (data.kdj_k && data.kdj_d && data.kdj_j) {
+      const k = parseFloat(data.kdj_k);
+      const d = parseFloat(data.kdj_d);
+      const j = parseFloat(data.kdj_j);
 
       if (k < 20 && d < 20) {
         score += 5; // KDJ超卖
@@ -225,11 +225,11 @@ class TechnicalScoreService {
   calculateVolatilityScore(data) {
     let score = 50; // 基准分
 
-    if (data.upper_band && data.middle_band && data.lower_band) {
+    if (data.boll_upper && data.boll_mid && data.boll_lower) {
       const price = parseFloat(data.close_price);
-      const upper = parseFloat(data.upper_band);
-      const lower = parseFloat(data.lower_band);
-      const middle = parseFloat(data.middle_band);
+      const upper = parseFloat(data.boll_upper);
+      const lower = parseFloat(data.boll_lower);
+      const middle = parseFloat(data.boll_mid);
 
       // BOLL带宽 (波动性)
       const bandwidth = ((upper - lower) / middle) * 100;
@@ -276,19 +276,19 @@ class TechnicalScoreService {
    */
   getMADetails(data) {
     return {
-      ma5: data.ma_5 ? parseFloat(data.ma_5).toFixed(2) : null,
-      ma10: data.ma_10 ? parseFloat(data.ma_10).toFixed(2) : null,
-      ma20: data.ma_20 ? parseFloat(data.ma_20).toFixed(2) : null,
+      ma5: data.ma5 ? parseFloat(data.ma5).toFixed(2) : null,
+      ma10: data.ma10 ? parseFloat(data.ma10).toFixed(2) : null,
+      ma20: data.ma20 ? parseFloat(data.ma20).toFixed(2) : null,
       trend: this.getMATrend(data)
     };
   }
 
   getMATrend(data) {
-    if (!data.ma_5 || !data.ma_10 || !data.ma_20) return 'UNKNOWN';
+    if (!data.ma5 || !data.ma10 || !data.ma20) return 'UNKNOWN';
 
-    if (data.ma_5 > data.ma_10 && data.ma_10 > data.ma_20) {
+    if (data.ma5 > data.ma10 && data.ma10 > data.ma20) {
       return 'BULLISH'; // 多头
-    } else if (data.ma_5 < data.ma_10 && data.ma_10 < data.ma_20) {
+    } else if (data.ma5 < data.ma10 && data.ma10 < data.ma20) {
       return 'BEARISH'; // 空头
     } else {
       return 'MIXED'; // 震荡
@@ -300,21 +300,21 @@ class TechnicalScoreService {
    */
   getMACDDetails(data) {
     return {
-      macd: data.macd ? parseFloat(data.macd).toFixed(4) : null,
-      dif: data.dif ? parseFloat(data.dif).toFixed(4) : null,
-      dea: data.dea ? parseFloat(data.dea).toFixed(4) : null,
+      macd: data.macd_hist ? parseFloat(data.macd_hist).toFixed(4) : null,
+      dif: data.macd ? parseFloat(data.macd).toFixed(4) : null,
+      dea: data.macd_signal ? parseFloat(data.macd_signal).toFixed(4) : null,
       signal: this.getMACDSignal(data)
     };
   }
 
   getMACDSignal(data) {
-    if (!data.dif || !data.dea) return 'UNKNOWN';
+    if (!data.macd || !data.macd_signal) return 'UNKNOWN';
 
-    if (data.dif > data.dea && data.macd > 0) {
+    if (data.macd > data.macd_signal && data.macd_hist > 0) {
       return 'GOLDEN_CROSS'; // 金叉
-    } else if (data.dif < data.dea && data.macd < 0) {
+    } else if (data.macd < data.macd_signal && data.macd_hist < 0) {
       return 'DEATH_CROSS'; // 死叉
-    } else if (data.dif > data.dea) {
+    } else if (data.macd > data.macd_signal) {
       return 'BULLISH'; // 多头
     } else {
       return 'BEARISH'; // 空头
@@ -325,7 +325,7 @@ class TechnicalScoreService {
    * 获取RSI详情
    */
   getRSIDetails(data) {
-    const rsi = data.rsi_6 ? parseFloat(data.rsi_6) : null;
+    const rsi = data.rsi6 ? parseFloat(data.rsi6) : null;
 
     return {
       rsi6: rsi ? rsi.toFixed(2) : null,
@@ -347,18 +347,18 @@ class TechnicalScoreService {
    */
   getKDJDetails(data) {
     return {
-      k: data.k_value ? parseFloat(data.k_value).toFixed(2) : null,
-      d: data.d_value ? parseFloat(data.d_value).toFixed(2) : null,
-      j: data.j_value ? parseFloat(data.j_value).toFixed(2) : null,
+      k: data.kdj_k ? parseFloat(data.kdj_k).toFixed(2) : null,
+      d: data.kdj_d ? parseFloat(data.kdj_d).toFixed(2) : null,
+      j: data.kdj_j ? parseFloat(data.kdj_j).toFixed(2) : null,
       signal: this.getKDJSignal(data)
     };
   }
 
   getKDJSignal(data) {
-    if (!data.k_value || !data.d_value) return 'UNKNOWN';
+    if (!data.kdj_k || !data.kdj_d) return 'UNKNOWN';
 
-    const k = parseFloat(data.k_value);
-    const d = parseFloat(data.d_value);
+    const k = parseFloat(data.kdj_k);
+    const d = parseFloat(data.kdj_d);
 
     if (k < 20 && d < 20) return 'OVERSOLD';
     if (k > 80 && d > 80) return 'OVERBOUGHT';
@@ -370,14 +370,14 @@ class TechnicalScoreService {
    * 获取BOLL详情
    */
   getBOLLDetails(data) {
-    if (!data.upper_band || !data.middle_band || !data.lower_band) {
+    if (!data.boll_upper || !data.boll_mid || !data.boll_lower) {
       return null;
     }
 
     const price = parseFloat(data.close_price);
-    const upper = parseFloat(data.upper_band);
-    const middle = parseFloat(data.middle_band);
-    const lower = parseFloat(data.lower_band);
+    const upper = parseFloat(data.boll_upper);
+    const middle = parseFloat(data.boll_mid);
+    const lower = parseFloat(data.boll_lower);
 
     const position = ((price - lower) / (upper - lower) * 100).toFixed(2);
     const bandwidth = ((upper - lower) / middle * 100).toFixed(2);

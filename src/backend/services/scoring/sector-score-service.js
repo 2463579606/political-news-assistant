@@ -107,15 +107,8 @@ class SectorScoreService {
         impactSectors.forEach(sector => sectors.add(sector));
       });
 
-      // 如果没有找到，使用板块映射器的股票样本数据
-      if (sectors.size === 0) {
-        const sampleStocks = this.sectorMapper.getSampleStocks();
-        for (const sector in sampleStocks) {
-          if (sampleStocks[sector].some(s => s.code === stockCode)) {
-            sectors.add(sector);
-          }
-        }
-      }
+      // 如果没有找到，返回空数组（无法识别板块）
+      // TODO: 可以在这里维护一个股票到板块的映射表
 
       return Array.from(sectors);
 

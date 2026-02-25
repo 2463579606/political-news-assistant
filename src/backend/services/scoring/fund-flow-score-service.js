@@ -63,16 +63,16 @@ class FundFlowScoreService {
         },
         grade: this.getGrade(overallScore),
         details: {
-          mainNetInflow: fundFlowData.main_net_inflow ?
-            parseFloat(fundFlowData.main_net_inflow).toFixed(2) : 0,
-          superLargeNetInflow: fundFlowData.super_large_net_inflow ?
-            parseFloat(fundFlowData.super_large_net_inflow).toFixed(2) : 0,
-          largeNetInflow: fundFlowData.large_net_inflow ?
-            parseFloat(fundFlowData.large_net_inflow).toFixed(2) : 0,
-          mediumNetInflow: fundFlowData.medium_net_inflow ?
-            parseFloat(fundFlowData.medium_net_inflow).toFixed(2) : 0,
-          smallNetInflow: fundFlowData.small_net_inflow ?
-            parseFloat(fundFlowData.small_net_inflow).toFixed(2) : 0,
+          mainNetInflow: fundFlowData.main_net ?
+            parseFloat(fundFlowData.main_net).toFixed(2) : 0,
+          superLargeNetInflow: fundFlowData.superlarge_net ?
+            parseFloat(fundFlowData.superlarge_net).toFixed(2) : 0,
+          largeNetInflow: fundFlowData.large_net ?
+            parseFloat(fundFlowData.large_net).toFixed(2) : 0,
+          mediumNetInflow: fundFlowData.medium_net ?
+            parseFloat(fundFlowData.medium_net).toFixed(2) : 0,
+          smallNetInflow: fundFlowData.small_net ?
+            parseFloat(fundFlowData.small_net).toFixed(2) : 0,
           consecutiveDays: fundFlowData.main_inflow_count || 0,
           trend: fundFlowData.trend || 'UNKNOWN'
         }
@@ -115,8 +115,8 @@ class FundFlowScoreService {
   calculateMainFlowScore(data) {
     let score = 50; // 基准分
 
-    if (data.main_net_inflow !== null && data.main_net_inflow !== undefined) {
-      const mainFlow = parseFloat(data.main_net_inflow);
+    if (data.main_net !== null && data.main_net !== undefined) {
+      const mainFlow = parseFloat(data.main_net);
 
       // 大幅流入 (>1亿)
       if (mainFlow > 100000000) {
@@ -173,9 +173,9 @@ class FundFlowScoreService {
     let score = 50; // 基准分
 
     // 散户资金 = 中单 + 小单
-    if (data.medium_net_inflow !== null && data.small_net_inflow !== null) {
-      const mediumFlow = parseFloat(data.medium_net_inflow || 0);
-      const smallFlow = parseFloat(data.small_net_inflow || 0);
+    if (data.medium_net !== null && data.small_net !== null) {
+      const mediumFlow = parseFloat(data.medium_net || 0);
+      const smallFlow = parseFloat(data.small_net || 0);
       const retailFlow = mediumFlow + smallFlow;
 
       // 散户流入（通常散户流入是反向指标，但也可能跟风）
