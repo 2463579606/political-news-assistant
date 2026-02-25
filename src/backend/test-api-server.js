@@ -12,6 +12,7 @@ const marketV2Routes = require('./routes/market-v2');
 const fundFlowV2Routes = require('./routes/fund-flow-v2');
 const newsEventsV2Routes = require('./routes/news-events-v2');
 const vectorRetrievalRoutes = require('./routes/vector-retrieval');
+const decisionV2Routes = require('./routes/decision-v2');
 
 const app = express();
 const PORT = 3002; // 使用不同端口避免冲突
@@ -32,6 +33,7 @@ app.use('/api/v2/market', marketV2Routes);
 app.use('/api/v2/fund-flow', fundFlowV2Routes);
 app.use('/api/v2/news', newsEventsV2Routes);
 app.use('/api/v2/vector', vectorRetrievalRoutes);
+app.use('/api/v2/decision', decisionV2Routes);
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -86,19 +88,20 @@ app.listen(PORT, () => {
 ║  市场数据:                                              ║
 ║  - GET  /api/v2/market/test                           ║
 ║  - GET  /api/v2/market/stock/:code/kline              ║
-║  - POST /api/v2/market/stock/:code/update             ║
 ║  资金流向:                                              ║
 ║  - GET  /api/v2/fund-flow/stock/:code                 ║
-║  - POST /api/v2/fund-flow/batch-update                ║
 ║  新闻事件:                                              ║
 ║  - POST /api/v2/news/extract                          ║
-║  - GET  /api/v2/news/events/:newsId                   ║
 ║  向量检索:                                              ║
-║  - POST /api/v2/vector/index-event                    ║
-║  - POST /api/v2/vector/index-batch                    ║
 ║  - POST /api/v2/vector/similar                        ║
-║  - GET  /api/v2/vector/search/:eventId                ║
 ║  - GET  /api/v2/vector/stats                          ║
+║  决策引擎:                                              ║
+║  - POST /api/v2/decision/generate                     ║
+║  - POST /api/v2/decision/batch-generate               ║
+║  - GET  /api/v2/decision/history/:code                ║
+║  - GET  /api/v2/decision/latest/:code                 ║
+║  - POST /api/v2/decision/risk/assess                  ║
+║  - POST /api/v2/decision/scoring/calculate            ║
 ╚════════════════════════════════════════════════════════╝
   `);
 });
