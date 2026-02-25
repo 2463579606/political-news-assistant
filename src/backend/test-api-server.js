@@ -10,6 +10,7 @@ const cors = require('cors');
 // 导入路由
 const marketV2Routes = require('./routes/market-v2');
 const fundFlowV2Routes = require('./routes/fund-flow-v2');
+const newsEventsV2Routes = require('./routes/news-events-v2');
 
 const app = express();
 const PORT = 3002; // 使用不同端口避免冲突
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
 // API路由
 app.use('/api/v2/market', marketV2Routes);
 app.use('/api/v2/fund-flow', fundFlowV2Routes);
+app.use('/api/v2/news', newsEventsV2Routes);
 
 // 健康检查
 app.get('/health', (req, res) => {
