@@ -11,6 +11,7 @@ const cors = require('cors');
 const marketV2Routes = require('./routes/market-v2');
 const fundFlowV2Routes = require('./routes/fund-flow-v2');
 const newsEventsV2Routes = require('./routes/news-events-v2');
+const vectorRetrievalRoutes = require('./routes/vector-retrieval');
 
 const app = express();
 const PORT = 3002; // 使用不同端口避免冲突
@@ -30,6 +31,7 @@ app.use((req, res, next) => {
 app.use('/api/v2/market', marketV2Routes);
 app.use('/api/v2/fund-flow', fundFlowV2Routes);
 app.use('/api/v2/news', newsEventsV2Routes);
+app.use('/api/v2/vector', vectorRetrievalRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -81,10 +83,22 @@ app.listen(PORT, () => {
 ║  可用接口:                                              ║
 ║  - GET  /health                                       ║
 ║  - GET  /                                             ║
+║  市场数据:                                              ║
 ║  - GET  /api/v2/market/test                           ║
 ║  - GET  /api/v2/market/stock/:code/kline              ║
 ║  - POST /api/v2/market/stock/:code/update             ║
-║  - POST /api/v2/market/batch-update                   ║
+║  资金流向:                                              ║
+║  - GET  /api/v2/fund-flow/stock/:code                 ║
+║  - POST /api/v2/fund-flow/batch-update                ║
+║  新闻事件:                                              ║
+║  - POST /api/v2/news/extract                          ║
+║  - GET  /api/v2/news/events/:newsId                   ║
+║  向量检索:                                              ║
+║  - POST /api/v2/vector/index-event                    ║
+║  - POST /api/v2/vector/index-batch                    ║
+║  - POST /api/v2/vector/similar                        ║
+║  - GET  /api/v2/vector/search/:eventId                ║
+║  - GET  /api/v2/vector/stats                          ║
 ╚════════════════════════════════════════════════════════╝
   `);
 });
