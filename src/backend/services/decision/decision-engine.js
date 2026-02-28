@@ -8,16 +8,23 @@
  * 3. 置信度计算
  * 4. 理由生成
  * 5. 风险控制
+ * 6. 缓存优化
  */
 
 const ScoringService = require('../scoring/scoring-service');
+const FundamentalScoreService = require('../scoring/fundamental-score-service');
+const FundamentalAnalysisService = require('../fundamental/fundamental-analysis-service');
 const RiskAssessmentService = require('./risk-assessment-service');
+const CacheService = require('../cache/cache-service');
 const { Pool } = require('pg');
 
 class DecisionEngine {
   constructor() {
     this.scoringService = new ScoringService();
+    this.fundamentalService = new FundamentalScoreService();
+    this.fundamentalAnalysisService = new FundamentalAnalysisService();
     this.riskService = new RiskAssessmentService();
+    this.cache = CacheService;
 
     this.pool = new Pool({
       host: process.env.POSTGRES_HOST || 'localhost',
@@ -51,52 +58,109 @@ class DecisionEngine {
    */
   async generateDecision(stockCode, options = {}) {
     try {
+      const {
+        includeRisk = true,
+        saveToDb = false,
+        useCache = true  // 默认启用缓存
+      } = options;
+
+      // 检查缓存
+      if (useCache) {
+        const cached = this.cache.getCachedDecision(stockCode);
+        if (cached) {
+          console.log(`\n🎯 生成投资决策: ${stockCode} (缓存命中)`);
+          console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+          console.log(`✅ 从缓存获取决策`);
+          return cached;
+        }
+      }
+
       console.log(`\n🎯 生成投资决策: ${stockCode}`);
       console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
-      const {
-        includeRisk = true,
-        saveToDb = false
-      } = options;
-
       // 1. 获取综合评分
-      console.log(`1️⃣  计算综合评分...`);
+      console.log(`1️⃣  计算技术面综合评分...`);
       const scoreData = await this.scoringService.calculateOverallScore(stockCode);
 
-      // 2. 风险评估
+      // 2. 基本面评分 - 使用新的基本面分析服务
+      console.log(`2️⃣  计算基本面评分...`);
+      const fundamentalAnalysis = await this.fundamentalAnalysisService.getFundamentalAnalysis(stockCode);
+
+      // 转换为兼容格式
+      const fundamentalData = {
+        overall: fundamentalAnalysis.data?.scores?.total || 50,
+        profitability: {
+          overall: fundamentalAnalysis.data?.scores?.profitability || 50
+        },
+        growth: {
+          overall: fundamentalAnalysis.data?.scores?.growth || 50
+        },
+        financialHealth: {
+          overall: fundamentalAnalysis.data?.scores?.financialHealth || 50
+        },
+        efficiency: {
+          overall: fundamentalAnalysis.data?.scores?.quality || 50
+        },
+        grade: fundamentalAnalysis.data?.scores?.grade || 'C',
+        valuation: fundamentalAnalysis.data?.valuation,
+        rating: fundamentalAnalysis.data?.rating,
+        summary: fundamentalAnalysis.data?.summary
+      };
+
+      // 3. 风险评估
       let riskData = null;
       if (includeRisk) {
-        console.log(`2️⃣  风险评估...`);
+        console.log(`3️⃣  风险评估...`);
         riskData = await this.riskService.assessRisk(stockCode);
       }
 
-      // 3. 生成决策
-      console.log(`3️⃣  生成决策...`);
-      const decision = this.makeDecision(scoreData, riskData);
+      // 4. 生成决策
+      console.log(`4️⃣  生成决策...`);
+      const decision = this.makeDecision(scoreData, fundamentalData, riskData);
 
-      // 4. 计算置信度
-      console.log(`4️⃣  计算置信度...`);
-      const confidence = this.calculateConfidence(scoreData, riskData, decision);
+      // 5. 计算置信度
+      console.log(`5️⃣  计算置信度...`);
+      const confidence = this.calculateConfidence(scoreData, fundamentalData, riskData, decision);
 
-      // 5. 生成理由
-      console.log(`5️⃣  生成决策理由...`);
-      const reason = this.generateReason(scoreData, riskData, decision);
+      // 6. 生成理由
+      console.log(`6️⃣  生成决策理由...`);
+      const reason = this.generateReason(scoreData, fundamentalData, riskData, decision);
 
-      // 6. 构建结果
+      // 7. 构建结果
       const result = {
         stockCode: stockCode,
         decisionDate: new Date().toISOString(),
 
         // 决策
         decision: decision.type, // BUY/SELL/HOLD
+        action: decision.action, // 具体操作建议（顶层快捷访问）
         decisionLevel: decision.level, // 强度级别
 
-        // 评分
+        // 评分 - 直接传递scoreData的所有字段
         scores: scoreData.scores,
         overallScore: scoreData.overallScore,
+        totalScore: scoreData.overallScore, // 别名，保持兼容性
         grade: scoreData.grade,
 
+        // 快捷访问分数字段
+        technicalScore: scoreData.technicalScore || 0,
+        fundFlowScore: scoreData.fundFlowScore || 0,
+        newsScore: scoreData.newsScore || 0,
+        sectorScore: scoreData.sectorScore || 0,
+
+        // 基本面评分
+        fundamentalScore: fundamentalData ? fundamentalData.overall : 0,
+        fundamental: fundamentalData ? {
+          profitability: fundamentalData.profitability.overall,
+          growth: fundamentalData.growth.overall,
+          financialHealth: fundamentalData.financialHealth.overall,
+          efficiency: fundamentalData.efficiency.overall,
+          grade: fundamentalData.grade,
+          details: fundamentalData
+        } : null,
+
         // 风险
+        riskLevel: riskData ? riskData.level : 'UNKNOWN',
         risk: riskData ? {
           level: riskData.level,
           score: riskData.overallScore,
@@ -118,6 +182,7 @@ class DecisionEngine {
 
         // 理由
         reason: reason,
+        reasoning: reason, // 别名，保持兼容性
 
         // 元数据
         metadata: {
@@ -131,7 +196,12 @@ class DecisionEngine {
       console.log(`   置信度: ${(result.confidence * 100).toFixed(0)}%`);
       console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-      // 7. 保存到数据库（可选）
+      // 7. 保存到缓存
+      if (useCache) {
+        this.cache.cacheDecision(stockCode, result);
+      }
+
+      // 8. 保存到数据库（可选）
       if (saveToDb) {
         await this.saveDecision(result);
       }
@@ -146,9 +216,25 @@ class DecisionEngine {
 
   /**
    * 做出决策
+   * 结合技术面和基本面评分
    */
-  makeDecision(scoreData, riskData) {
-    const score = scoreData.overallScore;
+  makeDecision(scoreData, fundamentalData, riskData) {
+    // 综合评分: 技术面60% + 基本面40%
+    const technicalScore = scoreData.overallScore;
+    const fundamentalScore = fundamentalData ? fundamentalData.overall : 50;
+
+    // 如果基本面评分可用，使用加权综合评分
+    let overallScore;
+    if (fundamentalData) {
+      overallScore = technicalScore * 0.6 + fundamentalScore * 0.4;
+      console.log(`   技术面: ${technicalScore.toFixed(2)}, 基本面: ${fundamentalScore.toFixed(2)}`);
+      console.log(`   综合评分: ${overallScore.toFixed(2)} (技术60% + 基本40%)`);
+    } else {
+      overallScore = technicalScore;
+      console.log(`   技术面: ${technicalScore.toFixed(2)} (基本面不可用)`);
+    }
+
+    const score = overallScore;
     const riskScore = riskData ? riskData.overallScore : 50;
 
     // 检查风险是否过高
@@ -250,46 +336,112 @@ class DecisionEngine {
 
   /**
    * 计算置信度
+   * 考虑技术面、基本面和风险
    */
-  calculateConfidence(scoreData, riskData, decision) {
+  calculateConfidence(scoreData, fundamentalData, riskData, decision) {
     let confidence = 0;
 
-    // 1. 评分确定性 (0-40分)
-    const score = scoreData.overallScore;
-    if (score >= 90 || score <= 10) {
-      confidence += 40; // 极端值更确定
-    } else if (score >= 80 || score <= 20) {
+    // 1. 评分确定性 (0-30分)
+    const technicalScore = scoreData.overallScore;
+    if (technicalScore >= 90 || technicalScore <= 10) {
       confidence += 30;
-    } else if (score >= 70 || score <= 30) {
-      confidence += 20;
+    } else if (technicalScore >= 80 || technicalScore <= 20) {
+      confidence += 25;
+    } else if (technicalScore >= 70 || technicalScore <= 30) {
+      confidence += 15;
     } else {
-      confidence += 10; // 中间值不确定
+      confidence += 10;
     }
 
-    // 2. 数据完整性 (0-30分)
-    const completeness = this.getScoreCompleteness(scoreData);
-    confidence += completeness * 30;
+    // 2. 基本面确认 (0-30分)
+    if (fundamentalData) {
+      const fundScore = fundamentalData.overall;
+      const directionMatches = this.checkDirectionMatch(technicalScore, fundScore, decision);
 
-    // 3. 风险可控性 (0-30分)
+      if (directionMatches) {
+        confidence += 30; // 技术面和基本面同向
+      } else {
+        confidence += 15; // 技术面和基本面反向，降低置信度
+      }
+    }
+
+    // 3. 数据完整性 (0-20分)
+    const completeness = this.getScoreCompleteness(scoreData);
+    confidence += completeness * 20;
+
+    // 4. 风险可控性 (0-20分)
     if (riskData) {
       const riskScore = riskData.overallScore;
       if (riskScore <= 30) {
-        confidence += 30; // 低风险
+        confidence += 20; // 低风险
       } else if (riskScore <= 50) {
-        confidence += 20; // 中低风险
+        confidence += 15; // 中低风险
       } else if (riskScore <= 70) {
         confidence += 10; // 中等风险
       }
-      // 高风险不加分
     }
 
     return Math.min(1, confidence / 100);
   }
 
   /**
-   * 生成决策理由
+   * 检查技术面和基本面是否同向
    */
-  generateReason(scoreData, riskData, decision) {
+  checkDirectionMatch(technicalScore, fundamentalScore, decision) {
+    const buy = (technicalScore >= 60 && fundamentalScore >= 60);
+    const sell = (technicalScore <= 40 && fundamentalScore <= 40);
+    const hold = (technicalScore > 40 && technicalScore < 60 && fundamentalScore > 40 && fundamentalScore < 60);
+
+    return buy || sell || hold;
+  }
+
+  /**
+   * 生成决策理由
+   * 包含技术面和基本面分析
+   */
+  generateReason(scoreData, fundamentalData, riskData, decision) {
+    const parts = [];
+
+    // 1. 技术面评分
+    const techScore = scoreData.overallScore;
+    parts.push(`技术面评分${techScore.toFixed(1)}分`);
+
+    // 2. 基本面评分
+    if (fundamentalData) {
+      const fundScore = fundamentalData.overall;
+      const fundGrade = fundamentalData.grade;
+      parts.push(`基本面评分${fundScore.toFixed(1)}分（${fundGrade}级）`);
+
+      // 添加基本面分析细节
+      if (fundamentalData.profitability.overall >= 80) {
+        parts.push('盈利能力强');
+      } else if (fundamentalData.profitability.overall <= 40) {
+        parts.push('盈利能力弱');
+      }
+
+      if (fundamentalData.growth.overall >= 80) {
+        parts.push('成长性好');
+      } else if (fundamentalData.growth.overall <= 40) {
+        parts.push('成长性不足');
+      }
+    }
+
+    // 3. 综合判断
+    if (decision.type === 'BUY') {
+      parts.push('技术面和基本面均表现优异，建议买入');
+    } else if (decision.type === 'SELL') {
+      parts.push('技术面或基本面表现不佳，建议卖出');
+    } else {
+      parts.push('技术面和基本面表现一般，建议持有观望');
+    }
+
+    return parts.join('；') + '。';
+  }
+
+  /**
+   * 生成决策理由（旧版本，保持兼容）
+   */
+  generateReasonOld(scoreData, riskData, decision) {
     const parts = [];
 
     // 1. 综合评分说明
@@ -390,22 +542,20 @@ class DecisionEngine {
     const query = `
       INSERT INTO decisions (
         stock_code,
-        decision_date,
         decision_type,
+        confidence,
+        total_score,
         technical_score,
-        fund_flow_score,
+        fund_score,
         news_score,
         sector_score,
-        overall_score,
         risk_level,
         risk_score,
-        confidence,
-        position_size,
-        expected_return,
-        reason,
-        status
+        reasoning,
+        decision_time,
+        is_validated
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
       )
       RETURNING id
     `;
@@ -413,20 +563,18 @@ class DecisionEngine {
     try {
       const values = [
         decisionData.stockCode,
-        decisionData.decisionDate.split('T')[0],
-        decisionData.decision,
-        decisionData.scores.technical?.overall || null,
-        decisionData.scores.fundFlow?.overall || null,
-        decisionData.scores.news?.overall || null,
-        decisionData.scores.sector?.overall || null,
-        decisionData.overallScore,
-        decisionData.risk?.level || null,
-        decisionData.risk?.score || null,
+        decisionData.decision.toLowerCase(),  // 转换为小写
         decisionData.confidence,
-        decisionData.recommendation.positionSize,
-        decisionData.recommendation.expectedReturn,
+        Math.round(decisionData.totalScore),
+        Math.round(decisionData.technicalScore),
+        Math.round(decisionData.fundFlowScore),
+        Math.round(decisionData.newsScore),
+        Math.round(decisionData.sectorScore),
+        decisionData.riskLevel.toLowerCase(),  // 转换为小写
+        decisionData.risk?.score ? Math.round(decisionData.risk.score) : null,
         decisionData.reason,
-        'PENDING'
+        new Date(),
+        false
       ];
 
       const result = await this.pool.query(query, values);
@@ -495,7 +643,7 @@ class DecisionEngine {
     const query = `
       SELECT * FROM decisions
       WHERE stock_code = $1
-      ORDER BY decision_date DESC
+      ORDER BY decision_time DESC
       LIMIT $2
     `;
 
@@ -516,7 +664,7 @@ class DecisionEngine {
     const query = `
       SELECT * FROM decisions
       WHERE stock_code = $1
-      ORDER BY decision_date DESC
+      ORDER BY decision_time DESC
       LIMIT 1
     `;
 
@@ -527,6 +675,60 @@ class DecisionEngine {
     } catch (error) {
       console.error('获取最新决策失败:', error.message);
       return null;
+    }
+  }
+
+  /**
+   * 获取决策统计
+   */
+  async getDecisionStats(stockCode = null, days = 30) {
+    try {
+      let query = `
+        SELECT
+          COUNT(*) as total_decisions,
+          COUNT(CASE WHEN decision_type = 'BUY' THEN 1 END) as buy_count,
+          COUNT(CASE WHEN decision_type = 'SELL' THEN 1 END) as sell_count,
+          COUNT(CASE WHEN decision_type = 'HOLD' THEN 1 END) as hold_count,
+          AVG(total_score) as avg_score,
+          AVG(confidence) as avg_confidence,
+          MAX(decision_time) as latest_decision
+        FROM decisions
+        WHERE decision_time >= NOW() - INTERVAL '${days} days'
+      `;
+
+      const params = [];
+
+      if (stockCode) {
+        query += ` AND stock_code = $1`;
+        params.push(stockCode);
+      }
+
+      const result = await this.pool.query(query, params);
+
+      const stats = {
+        period: `${days} days`,
+        stockCode: stockCode || 'ALL',
+        total: parseInt(result.rows[0].total_decisions) || 0,
+        buy: parseInt(result.rows[0].buy_count) || 0,
+        sell: parseInt(result.rows[0].sell_count) || 0,
+        hold: parseInt(result.rows[0].hold_count) || 0,
+        avgScore: parseFloat(result.rows[0].avg_score || 0).toFixed(2),
+        avgConfidence: parseFloat(result.rows[0].avg_confidence || 0).toFixed(2),
+        latestDecision: result.rows[0].latest_decision
+      };
+
+      // 计算决策分布百分比
+      if (stats.total > 0) {
+        stats.buyPercent = ((stats.buy / stats.total) * 100).toFixed(1);
+        stats.sellPercent = ((stats.sell / stats.total) * 100).toFixed(1);
+        stats.holdPercent = ((stats.hold / stats.total) * 100).toFixed(1);
+      }
+
+      return stats;
+
+    } catch (error) {
+      console.error('获取决策统计失败:', error.message);
+      throw error;
     }
   }
 }

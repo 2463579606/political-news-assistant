@@ -132,10 +132,32 @@ class BacktestEngine {
    * 模拟交易过程
    */
   async simulateTrading(historicalData, simulator, config) {
-    const { groupedData, tradingDays } = historicalData;
+    const { groupedData, tradingDays, stockCode, marketData } = historicalData;
     const trades = [];
     const equityCurve = [];
     const dailyReturns = [];
+
+    // 计算技术指标
+    const enrichedMarketData = this.calculateTechnicalIndicators(marketData);
+
+    // 重新按日期分组（使用与原始数据相同的日期格式）
+    const enrichedGroupedData = {};
+    enrichedMarketData.forEach(day => {
+      // 保持原始日期格式
+      const dateKey = day.trade_date;
+
+      if (!enrichedGroupedData[dateKey]) {
+        enrichedGroupedData[dateKey] = {
+          date: dateKey,
+          market: day,
+          fund: groupedData[dateKey]?.fund || null,
+          news: groupedData[dateKey]?.news || []
+        };
+      } else {
+        // 更新已有的market对象
+        enrichedGroupedData[dateKey].market = day;
+      }
+    });
 
     let prevEquity = config.initialCapital;
 
@@ -145,7 +167,7 @@ class BacktestEngine {
     // 遍历每个交易日
     for (let i = 0; i < tradingDays.length; i++) {
       const date = tradingDays[i];
-      const dayData = groupedData[date];
+      const dayData = enrichedGroupedData[date];
 
       if (!dayData.market) {
         continue;
@@ -169,16 +191,13 @@ class BacktestEngine {
       }
       prevEquity = equity;
 
-      // 生成决策（每隔N天或有重要新闻时）
+      // 生成决策（简化版：基于技术指标）
       const shouldMakeDecision = this.shouldMakeDecision(dayData, i, tradingDays.length);
 
       if (shouldMakeDecision) {
         try {
-          // 使用决策引擎生成决策
-          const decision = await this.decisionEngine.generateDecision(
-            historicalData.stockCode,
-            { includeRisk: false, saveToDb: false }
-          );
+          // 使用简化的决策逻辑（基于实时计算的技术指标）
+          const decision = this.generateHistoricalDecision(dayData, i, tradingDays, enrichedMarketData);
 
           // 执行交易
           const trade = simulator.executeDecision(decision, close_price, date);
@@ -194,9 +213,9 @@ class BacktestEngine {
       }
 
       // 每隔一定天数打印进度
-      if (i % 50 === 0 || i === tradingDays.length - 1) {
+      if (i % 10 === 0 || i === tradingDays.length - 1) {
         const progress = ((i + 1) / tradingDays.length * 100).toFixed(1);
-        console.log(`   进度: ${progress}% (${date}) 资金: ¥${equity.toLocaleString()}`);
+        console.log(`   进度: ${progress}% (${date}) 资金: ¥${equity.toLocaleString()} 持仓: ${simulator.position > 0 ? 'YES' : 'NO'}`);
       }
     }
 
@@ -207,6 +226,198 @@ class BacktestEngine {
     console.log(`  卖出次数: ${trades.filter(t => t.tradeType === 'SELL').length}`);
 
     return { trades, equityCurve, dailyReturns };
+  }
+
+  /**
+   * 计算技术指标
+   */
+  calculateTechnicalIndicators(marketData) {
+    const enriched = [...marketData];
+
+    // 按日期排序
+    enriched.sort((a, b) => new Date(a.trade_date) - new Date(b.trade_date));
+
+    // 计算移动平均线
+    for (let i = 0; i < enriched.length; i++) {
+      const close = parseFloat(enriched[i].close_price);
+
+      // MA5
+      if (i >= 4) {
+        const sum5 = enriched.slice(i - 4, i + 1).reduce((sum, d) => sum + parseFloat(d.close_price), 0);
+        enriched[i].ma5 = sum5 / 5;
+      }
+
+      // MA10
+      if (i >= 9) {
+        const sum10 = enriched.slice(i - 9, i + 1).reduce((sum, d) => sum + parseFloat(d.close_price), 0);
+        enriched[i].ma10 = sum10 / 10;
+      }
+
+      // MA20
+      if (i >= 19) {
+        const sum20 = enriched.slice(i - 19, i + 1).reduce((sum, d) => sum + parseFloat(d.close_price), 0);
+        enriched[i].ma20 = sum20 / 20;
+      }
+
+      // RSI6 (简化版)
+      if (i >= 6) {
+        let gains = 0, losses = 0;
+        for (let j = i - 5; j <= i; j++) {
+          const change = parseFloat(enriched[j].close_price) - parseFloat(enriched[j - 1].close_price);
+          if (change > 0) gains += change;
+          else losses -= change;
+        }
+        const avgGain = gains / 6;
+        const avgLoss = losses / 6;
+        if (avgLoss > 0) {
+          enriched[i].rsi6 = 100 - (100 / (1 + avgGain / avgLoss));
+        } else {
+          enriched[i].rsi6 = 100;
+        }
+      }
+
+      // 简化的MACD
+      if (i >= 12 && enriched[i].ma5 && enriched[i - 1].ma5) {
+        const ema12 = this.calculateEMA(enriched, i, 12);
+        const ema26 = this.calculateEMA(enriched, i, 26);
+        enriched[i].macd = ema12 - ema26;
+
+        if (i >= 26) {
+          const macdValues = enriched.slice(Math.max(0, i - 8), i + 1).map(d => d.macd || 0);
+          enriched[i].macd_signal = macdValues.reduce((a, b) => a + b, 0) / macdValues.length;
+        }
+      }
+    }
+
+    return enriched;
+  }
+
+  /**
+   * 计算EMA
+   */
+  calculateEMA(data, index, period) {
+    const multiplier = 2 / (period + 1);
+    let ema = parseFloat(data[index].close_price);
+
+    for (let i = index; i >= Math.max(0, index - period); i--) {
+      ema = (parseFloat(data[i].close_price) - ema) * multiplier + ema;
+    }
+
+    return ema;
+  }
+
+  /**
+   * 基于历史数据生成决策（优化版 - 更保守更准确）
+   */
+  generateHistoricalDecision(dayData, dayIndex, totalDays, marketData) {
+    const market = dayData.market;
+
+    if (!market) {
+      return { decision: 'HOLD', confidence: 0.5, reason: '无市场数据' };
+    }
+
+    let score = 0;
+    let signals = [];
+
+    // 1. 趋势确认 (MA) - 必须MA5 > MA20才考虑买入
+    if (market.ma5 && market.ma20) {
+      if (market.ma5 > market.ma20) {
+        score += 3; // 提高趋势权重
+        signals.push('MA5>MA20');
+      } else {
+        score -= 3;
+        signals.push('MA5<MA20');
+        // 趋势向下，不买入
+        if (score <= -3) {
+          return { decision: 'HOLD', confidence: 0.3, reason: '趋势向下,观望' };
+        }
+      }
+    }
+
+    // 2. 动量信号 (RSI) - 更严格的标准
+    if (market.rsi6) {
+      if (market.rsi6 < 35) { // 从30改为35，更严格
+        score += 4; // 提高超卖权重
+        signals.push(`RSI超卖(${market.rsi6.toFixed(0)})`);
+      } else if (market.rsi6 > 65) { // 从70改为65，更早止盈
+        score -= 3;
+        signals.push(`RSI超买(${market.rsi6.toFixed(0)})`);
+        // RSI超买，考虑卖出
+        if (score <= 0) {
+          return { decision: 'HOLD', confidence: 0.4, reason: 'RSI超买,等待' };
+        }
+      }
+    }
+
+    // 3. MACD信号 - 金叉确认
+    if (market.macd && market.macd_signal) {
+      if (market.macd > market.macd_signal) {
+        score += 2;
+        signals.push('MACD金叉');
+      } else {
+        score -= 2;
+        signals.push('MACD死叉');
+      }
+    }
+
+    // 4. 价格位置 - 在MA20下方更安全
+    if (market.close_price && market.ma20) {
+      const closePrice = parseFloat(market.close_price);
+      const ma20 = parseFloat(market.ma20);
+      const deviation = (closePrice - ma20) / ma20;
+
+      if (deviation < -0.02) {
+        // 价格低于MA20 2%，超跌， safer买入点
+        score += 3;
+        signals.push('价格超跌');
+      } else if (deviation > 0.03) {
+        // 价格高于MA20 3%，考虑止盈
+        score -= 2;
+        signals.push('价格偏离过高');
+      }
+    }
+
+    // 5. 成交量确认 (可选)
+    if (market.volume && dayIndex > 0) {
+      const prevVolume = marketData[dayIndex - 1]?.volume;
+      if (prevVolume && market.volume > prevVolume * 1.2) {
+        // 成交量放大20%以上
+        score += 1;
+        signals.push('成交量放大');
+      }
+    }
+
+    // 6. 最后一天强制平仓
+    if (dayIndex === totalDays - 1) {
+      return { decision: 'SELL', confidence: 1.0, reason: '回测结束,强制平仓' };
+    }
+
+    // 转换为决策 - 提高阈值，减少交易
+    let decision;
+    let confidence;
+
+    if (score >= 8) { // 从5提高到8
+      decision = 'STRONG_BUY';
+      confidence = 0.85;
+    } else if (score >= 5) { // 从2提高到5
+      decision = 'BUY';
+      confidence = 0.75;
+    } else if (score <= -6) { // 从-5降低到-6
+      decision = 'STRONG_SELL';
+      confidence = 0.80;
+    } else if (score <= -3) { // 从-2降低到-3
+      decision = 'SELL';
+      confidence = 0.70;
+    } else {
+      decision = 'HOLD';
+      confidence = 0.5;
+    }
+
+    return {
+      decision,
+      confidence,
+      reason: signals.join(', ') || '中性信号'
+    };
   }
 
   /**

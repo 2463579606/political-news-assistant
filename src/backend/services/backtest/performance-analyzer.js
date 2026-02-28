@@ -80,9 +80,12 @@ class PerformanceAnalyzer {
     // 卡玛比率
     const calmarRatio = this.calculateCalmarRatio(result.annualReturn || 0, maxDrawdown);
 
+    // 提取最大回撤值
+    const maxDrawdownValue = typeof maxDrawdown === 'object' ? maxDrawdown.value : maxDrawdown;
+
     return {
       maxDrawdown: maxDrawdown,
-      maxDrawdownPercent: (maxDrawdown * 100).toFixed(2) + '%',
+      maxDrawdownPercent: (Math.abs(maxDrawdownValue) * 100).toFixed(2) + '%',
       volatility: volatility,
       volatilityPercent: (volatility * 100).toFixed(2) + '%',
       sharpeRatio: sharpeRatio,

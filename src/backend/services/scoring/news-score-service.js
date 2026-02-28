@@ -10,11 +10,13 @@
  */
 
 const SimilarEventRetriever = require('../similarity/similar-event-retriever');
+const LLMNewsAnalyzer = require('../ai/llm-news-analyzer');
 const { Pool } = require('pg');
 
 class NewsScoreService {
   constructor() {
     this.retriever = new SimilarEventRetriever();
+    this.llmAnalyzer = LLMNewsAnalyzer;
     this.pool = new Pool({
       host: process.env.POSTGRES_HOST || 'localhost',
       port: process.env.POSTGRES_PORT || 5432,
@@ -27,8 +29,9 @@ class NewsScoreService {
   /**
    * 计算消息面综合评分
    * @param {string} stockCode - 股票代码
+   * @param {boolean} useLLM - 是否使用LLM分析 (默认true)
    */
-  async calculateNewsScore(stockCode) {
+  async calculateNewsScore(stockCode, useLLM = true) {
     try {
       console.log(`📰 计算消息面评分: ${stockCode}`);
 
@@ -40,12 +43,58 @@ class NewsScoreService {
         return this.getNeutralScore(stockCode);
       }
 
-      // 2. 计算各维度评分
+      // 2. 优先使用LLM深度分析
+      if (useLLM && this.llmAnalyzer.enabled) {
+        console.log(`🤖 使用LLM深度分析新闻...`);
+        const stockName = await this.getStockName(stockCode);
+        const llmResult = await this.llmAnalyzer.calculateNewsScore(
+          recentEvents,
+          stockCode,
+          stockName
+        );
+
+        if (llmResult && llmResult.analyses && llmResult.analyses.length > 0) {
+          const result = {
+            stockCode: stockCode,
+            scoreDate: new Date().toISOString().split('T')[0],
+            method: 'llm',
+            scores: {
+              sentiment: llmResult.sentiment,
+              impact: llmResult.impact,
+              credibility: llmResult.credibility,
+              overall: parseFloat(llmResult.overall.toFixed(2))
+            },
+            grade: this.getGrade(llmResult.overall),
+            details: {
+              eventCount: llmResult.newsCount,
+              bias: llmResult.bias,
+              netBias: llmResult.netBias,
+              summary: llmResult.summary,
+              analyses: llmResult.analyses.map(a => ({
+                title: a.title,
+                sentiment: a.analysis.sentiment,
+                sentimentScore: a.analysis.sentimentScore,
+                impact: a.analysis.impact,
+                impactScore: a.analysis.impactScore,
+                priceImpact: a.analysis.priceImpact,
+                credibility: a.analysis.credibility
+              }))
+            }
+          };
+
+          console.log(`✅ 消息面评分: ${result.scores.overall} (${result.grade}) [LLM分析]`);
+          return result;
+        }
+      }
+
+      // 3. 回退到传统分析方法
+      console.log(`📊 使用传统方法分析新闻...`);
+
       const importanceScore = this.calculateImportanceScore(recentEvents);
       const sentimentScore = this.calculateSentimentScore(recentEvents);
       const historyScore = await this.calculateHistoryScore(recentEvents);
 
-      // 3. 加权计算综合评分
+      // 4. 加权计算综合评分
       const overallScore = (
         importanceScore * 0.40 +
         sentimentScore * 0.30 +
@@ -55,6 +104,7 @@ class NewsScoreService {
       const result = {
         stockCode: stockCode,
         scoreDate: new Date().toISOString().split('T')[0],
+        method: 'traditional',
         scores: {
           importance: importanceScore,
           sentiment: sentimentScore,
@@ -76,7 +126,7 @@ class NewsScoreService {
         }
       };
 
-      console.log(`✅ 消息面评分: ${result.scores.overall} (${result.grade})`);
+      console.log(`✅ 消息面评分: ${result.scores.overall} (${result.grade}) [传统分析]`);
 
       return result;
 
@@ -355,6 +405,22 @@ class NewsScoreService {
         error: error.message
       };
     }
+  }
+
+  /**
+   * 获取股票名称
+   */
+  async getStockName(stockCode) {
+    // 简单的股票代码到名称映射
+    const stockNames = {
+      '000001.SZ': '平安银行',
+      '000002.SZ': '万科A',
+      '600000.SH': '浦发银行',
+      '600036.SH': '招商银行',
+      '600519.SH': '贵州茅台'
+    };
+
+    return stockNames[stockCode] || stockCode;
   }
 }
 

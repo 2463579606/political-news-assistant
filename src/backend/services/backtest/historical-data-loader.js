@@ -86,8 +86,8 @@ class HistoricalDataLoader {
         boll_upper, boll_mid, boll_lower
       FROM market_data
       WHERE stock_code = $1
-        AND trade_date >= $2
-        AND trade_date <= $3
+        AND trade_date::date >= $2::date
+        AND trade_date::date <= $3::date
       ORDER BY trade_date ASC
     `;
 
@@ -109,8 +109,8 @@ class HistoricalDataLoader {
         small_inflow, small_outflow, small_net
       FROM fund_flow
       WHERE stock_code = $1
-        AND trade_date >= $2
-        AND trade_date <= $3
+        AND trade_date::date >= $2::date
+        AND trade_date::date <= $3::date
       ORDER BY trade_date ASC
     `;
 

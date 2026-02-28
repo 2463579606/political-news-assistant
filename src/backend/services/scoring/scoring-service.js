@@ -130,6 +130,11 @@ class ScoringService {
           news: scores.news ? scores.news.scores : null,
           sector: scores.sector ? scores.sector.scores : null
         },
+        // 快捷访问分数字段
+        technicalScore: scores.technical?.scores?.overall || 0,
+        fundFlowScore: scores.fundFlow?.scores?.overall || 0,
+        newsScore: scores.news?.scores?.overall || 0,
+        sectorScore: scores.sector?.scores?.overall || 0,
         weights: this.weights,
         details: {
           technical: scores.technical ? scores.technical.details : null,
